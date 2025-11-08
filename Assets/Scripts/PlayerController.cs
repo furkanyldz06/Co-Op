@@ -5,9 +5,11 @@ public class PlayerController : NetworkBehaviour
 {
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 5f;
+    [SerializeField] private float _rotationSpeed = 10f; // Dönüş hızı (yüksek = hızlı, düşük = yavaş)
 
-    // Network senkronize pozisyon
+    // Network senkronize pozisyon ve rotasyon
     [Networked] public Vector3 NetworkedPosition { get; set; }
+    [Networked] public Quaternion NetworkedRotation { get; set; }
 
     private MeshRenderer _renderer;
 
@@ -22,8 +24,9 @@ public class PlayerController : NetworkBehaviour
 
     public override void Spawned()
     {
-        // İlk pozisyonu network'e kaydet
+        // İlk pozisyonu ve rotasyonu network'e kaydet
         NetworkedPosition = transform.position;
+        NetworkedRotation = transform.rotation;
 
         // Material oluştur (her oyuncu için ayrı material instance)
         if (_renderer != null)
@@ -60,22 +63,30 @@ public class PlayerController : NetworkBehaviour
         // Sadece input yetkisi olan oyuncu hareket edebilir
         if (GetInput(out NetworkInputData data))
         {
-            // Hareket yönünü normalize et
-            data.direction.Normalize();
+            // Hareket varsa
+            if (data.direction.magnitude > 0.1f)
+            {
+                // Hareket yönünü normalize et
+                data.direction.Normalize();
 
-            // Hareketi uygula
-            Vector3 move = data.direction * _moveSpeed * Runner.DeltaTime;
+                // Hareketi uygula
+                Vector3 move = data.direction * _moveSpeed * Runner.DeltaTime;
+                transform.position += move;
 
-            // Pozisyonu direkt güncelle
-            transform.position += move;
+                // Hareket yönüne doğru yumuşakça dön (Lerp ile)
+                Quaternion targetRotation = Quaternion.LookRotation(data.direction);
+                transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
 
-            // Network pozisyonunu güncelle
-            NetworkedPosition = transform.position;
+                // Network pozisyon ve rotasyonu güncelle
+                NetworkedPosition = transform.position;
+                NetworkedRotation = transform.rotation;
+            }
         }
         else
         {
-            // Input yetkisi yoksa network pozisyonunu kullan
+            // Input yetkisi yoksa network pozisyon ve rotasyonu kullan
             transform.position = NetworkedPosition;
+            transform.rotation = NetworkedRotation;
         }
     }
 }
