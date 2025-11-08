@@ -73,7 +73,7 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 
         if (_keyboard != null)
         {
-            // Use bitwise operations for better performance
+            // Movement input
             if (_keyboard.wKey.isPressed)
                 data.direction.z += 1f;
 
@@ -86,7 +86,11 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
             if (_keyboard.dKey.isPressed)
                 data.direction.x += 1f;
 
+            // Sprint input
             data.isSprinting = _keyboard.leftShiftKey.isPressed;
+
+            // Jump input - use isPressed instead of wasPressedThisFrame for better reliability
+            data.isJumping = _keyboard.spaceKey.isPressed;
         }
 
         input.Set(data);
@@ -114,5 +118,6 @@ public struct NetworkInputData : INetworkInput
 {
     public Vector3 direction;
     public NetworkBool isSprinting;
+    public NetworkBool isJumping;
 }
 
