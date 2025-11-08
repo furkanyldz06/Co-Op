@@ -23,7 +23,6 @@ public class PlayerController : NetworkBehaviour
     {
         // MeshRenderer'ı bul
         _renderer = GetComponent<MeshRenderer>();
-        camera.transform.parent = null;
     }
 
     public override void Spawned()
@@ -31,6 +30,41 @@ public class PlayerController : NetworkBehaviour
         // İlk pozisyonu ve rotasyonu network'e kaydet
         NetworkedPosition = transform.position;
         NetworkedRotation = transform.rotation;
+
+        // SADECE KENDI KARAKTERIMIZDE KAMERAYI AKTIF ET!
+        if (Object.HasInputAuthority)
+        {
+            // Kamerayı parent'tan ayır ve aktif et
+            if (camera != null)
+            {
+                camera.transform.parent = null;
+                camera.SetActive(true);
+
+                // CameraManager'ı ayarla
+                var cameraManager = camera.GetComponent<GameOrganization.CameraManager>();
+                if (cameraManager != null)
+                {
+                    cameraManager.followObj = transform;
+                    // lookObj'yi public olarak ayarla (Inspector'dan atanacak)
+                    // cameraManager.lookObj = transform; // Bu satırı kaldırdık
+
+                    // CameraMovement'ı başlat
+                    var cameraMovement = camera.GetComponent<GameOrganization.CameraMovement>();
+                    if (cameraMovement != null)
+                    {
+                        cameraMovement.firstLook();
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Diğer oyuncuların kamerasını deaktif et
+            if (camera != null)
+            {
+                camera.SetActive(false);
+            }
+        }
 
         // Material oluştur (her oyuncu için ayrı material instance)
         if (_renderer != null)

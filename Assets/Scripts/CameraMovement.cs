@@ -20,19 +20,10 @@ namespace GameOrganization
             }
         }
 
-        void FixedUpdate()
-        // void FixedUpdate()
+        void LateUpdate()
         {
             if (cameraManager.followObj)
             {
-                // if (!_characterState)
-                // {
-                //     _characterState = cameraManager.followObj.GetComponent<FixedScale>().characterState;
-                // }
-
-                // if (_characterState.ragdollControl.enableRagdoll) Look2();
-                // else Look();
-                
                 Look();
                 Move();
                 if(cameraManager.followPermission)
@@ -44,26 +35,28 @@ namespace GameOrganization
         {
             Vector3 targetPos = cameraManager.lookObj.position;
             Quaternion rotation = Quaternion.LookRotation(targetPos - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.fixedDeltaTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * 2f);
         }
-        
+
         void Look2()
         {
             Vector3 targetPos = cameraManager.followObj.position;
             Quaternion rotation = Quaternion.LookRotation(targetPos - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.fixedDeltaTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * 2f);
         }
 
         void Move()
         {
-            Vector3 desiredPoisiton = cameraManager.followObj.position + cameraManager.offset;
-            Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPoisiton, cameraManager.smoothSpeed);
+            Vector3 desiredPosition = cameraManager.followObj.position + cameraManager.offset;
+            // Time.deltaTime ile frame-independent smooth movement
+            float smoothFactor = cameraManager.smoothSpeed * Time.deltaTime * 50f;
+            Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothFactor);
             transform.position = smoothedPosition;
         }
 
         void Sensitivity()
         {
-            cameraManager.smoothSpeed = Mathf.Clamp(cameraManager.smoothSpeed + 0.02f * Time.deltaTime, 0.01f, 0.075f);
+            cameraManager.smoothSpeed = Mathf.Clamp(cameraManager.smoothSpeed + 0.02f * Time.deltaTime, 0.01f, cameraManager.smoothSpeed2);
         }
     }
 }
