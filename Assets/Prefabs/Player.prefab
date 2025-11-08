@@ -507,11 +507,11 @@ MonoBehaviour:
   _gravity: -20
   sprintMultiplier: 2
   _animator: {fileID: 6359026049647564185}
+  _camera: {fileID: 147775395530365571}
   _IsWalking:
     _value: 0
   _IsRunning:
     _value: 0
-  camera: {fileID: 147775395530365571}
 --- !u!114 &5187379185714689782
 MonoBehaviour:
   m_ObjectHideFlags: 0

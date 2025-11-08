@@ -1,6 +1,3 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -9,51 +6,61 @@ namespace GameOrganization
     public class CameraMovement : MonoBehaviour
     {
         public CameraManager cameraManager;
-        // private CharacterState _characterState;
+
+        // Cached references for performance
+        private Mouse _mouse;
+        private Transform _followTransform;
+        private Transform _lookTransform;
+
         public void firstLook()
         {
             if (cameraManager.followObj)
             {
-                transform.position = new Vector3(cameraManager.followObj.transform.position.x + 5,
-                    cameraManager.followObj.transform.position.y + 6.5f, cameraManager.followObj.transform.position.z);
+                Vector3 followPos = cameraManager.followObj.position;
+                transform.position = new Vector3(followPos.x + 5f, followPos.y + 6.5f, followPos.z);
+            }
+        }
 
-                // _characterState = cameraManager.followObj.GetComponent<FixedScale>().characterState;
+        private void Start()
+        {
+            // Cache mouse reference
+            _mouse = Mouse.current;
+
+            // Cache transform references
+            if (cameraManager != null)
+            {
+                _followTransform = cameraManager.followObj;
+                _lookTransform = cameraManager.lookObj;
             }
         }
 
         void LateUpdate()
         {
-            if (cameraManager.followObj)
-            {
-                HandleZoom();
-                Look();
-                Move();
-                if(cameraManager.followPermission)
-                    Sensitivity();
-            }
+            if (_followTransform == null) return;
+
+            HandleZoom();
+            Look();
+            Move();
+
+            if (cameraManager.followPermission)
+                Sensitivity();
         }
 
         void HandleZoom()
         {
-            // Mouse scroll input - YENİ INPUT SYSTEM
-            var mouse = Mouse.current;
-            if (mouse == null) return;
+            if (_mouse == null) return;
 
-            float scrollInput = mouse.scroll.ReadValue().y / 120f; // Normalize scroll value
+            float scrollInput = _mouse.scroll.ReadValue().y / 120f;
 
             if (scrollInput != 0f)
             {
-                // Zoom in/out
                 cameraManager.currentZoomDistance -= scrollInput * cameraManager.zoomSpeed;
-
-                // Clamp zoom distance
                 cameraManager.currentZoomDistance = Mathf.Clamp(
                     cameraManager.currentZoomDistance,
                     cameraManager.minZoomDistance,
                     cameraManager.maxZoomDistance
                 );
 
-                // Update offset magnitude based on zoom
                 Vector3 offsetDirection = cameraManager.offset.normalized;
                 cameraManager.offset = offsetDirection * cameraManager.currentZoomDistance;
             }
@@ -61,30 +68,32 @@ namespace GameOrganization
 
         void Look()
         {
-            Vector3 targetPos = cameraManager.lookObj.position;
-            Quaternion rotation = Quaternion.LookRotation(targetPos - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * cameraManager.rotSpeed);
-        }
+            if (_lookTransform == null) return;
 
-        void Look2()
-        {
-            Vector3 targetPos = cameraManager.followObj.position;
-            Quaternion rotation = Quaternion.LookRotation(targetPos - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * cameraManager.rotSpeed);
+            Vector3 targetPos = _lookTransform.position;
+            Vector3 direction = targetPos - transform.position;
+
+            if (direction.sqrMagnitude > 0.001f) // Avoid zero-length vector
+            {
+                Quaternion rotation = Quaternion.LookRotation(direction);
+                transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * cameraManager.rotSpeed);
+            }
         }
 
         void Move()
         {
-            Vector3 desiredPosition = cameraManager.followObj.position + cameraManager.offset;
-            // Time.deltaTime ile frame-independent smooth movement
+            Vector3 desiredPosition = _followTransform.position + cameraManager.offset;
             float smoothFactor = cameraManager.smoothSpeed * Time.deltaTime * cameraManager.moveSpeed;
-            Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothFactor);
-            transform.position = smoothedPosition;
+            transform.position = Vector3.Lerp(transform.position, desiredPosition, smoothFactor);
         }
 
         void Sensitivity()
         {
-            cameraManager.smoothSpeed = Mathf.Clamp(cameraManager.smoothSpeed + 0.02f * Time.deltaTime, 0.01f, cameraManager.smoothSpeed2);
+            cameraManager.smoothSpeed = Mathf.Clamp(
+                cameraManager.smoothSpeed + 0.02f * Time.deltaTime,
+                0.01f,
+                cameraManager.smoothSpeed2
+            );
         }
     }
 }

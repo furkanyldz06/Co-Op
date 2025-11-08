@@ -9,19 +9,26 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float _gravity = -20f;
 
     [Header("Sprint Settings")]
-    public float sprintMultiplier = 2f; // Koşma hız çarpanı (public - Inspector'dan ayarlanabilir)
+    public float sprintMultiplier = 2f;
 
     [Header("Animation")]
     [SerializeField] private Animator _animator;
 
+    [Header("Camera")]
+    [SerializeField] private GameObject _camera;
+
+    // Networked Properties
     [Networked] public NetworkBool IsWalking { get; set; }
     [Networked] public NetworkBool IsRunning { get; set; }
     [Networked] private Vector3 NetworkedVelocity { get; set; }
 
+    // Cached Components
     private MeshRenderer _renderer;
     private CharacterController _controller;
 
-    [SerializeField] private GameObject camera;
+    // Constants
+    private const float MOVEMENT_THRESHOLD = 0.01f; // sqrMagnitude için optimize
+    private const float GROUND_STICK_FORCE = -2f;
 
     private void Awake()
     {
@@ -31,76 +38,58 @@ public class PlayerController : NetworkBehaviour
 
     public override void Spawned()
     {
-        // CharacterController'ı başlat
+        // Initialize CharacterController
         if (_controller != null)
         {
             _controller.enabled = false;
             _controller.enabled = true;
         }
 
-        // SADECE KENDI KARAKTERIMIZDE KAMERAYI AKTIF ET!
+        // Setup camera only for local player
         if (Object.HasInputAuthority)
         {
-            // Kamerayı parent'tan ayır ve aktif et
-            if (camera != null)
-            {
-                camera.transform.parent = null;
-                camera.SetActive(true);
-
-                // CameraManager'ı ayarla
-                var cameraManager = camera.GetComponent<GameOrganization.CameraManager>();
-                if (cameraManager != null)
-                {
-                    cameraManager.followObj = transform;
-                    // lookObj'yi public olarak ayarla (Inspector'dan atanacak)
-                    // cameraManager.lookObj = transform; // Bu satırı kaldırdık
-
-                    // CameraMovement'ı başlat
-                    var cameraMovement = camera.GetComponent<GameOrganization.CameraMovement>();
-                    if (cameraMovement != null)
-                    {
-                        cameraMovement.firstLook();
-                    }
-                }
-            }
+            SetupLocalCamera();
         }
-        else
+        else if (_camera != null)
         {
-            // Diğer oyuncuların kamerasını deaktif et
-            if (camera != null)
-            {
-                camera.SetActive(false);
-            }
+            _camera.SetActive(false);
         }
 
-        // Material oluştur (her oyuncu için ayrı material instance)
-        if (_renderer != null)
+        // Setup player color based on spawn position
+        SetupPlayerColor();
+    }
+
+    private void SetupLocalCamera()
+    {
+        if (_camera == null) return;
+
+        _camera.transform.parent = null;
+        _camera.SetActive(true);
+
+        var cameraManager = _camera.GetComponent<GameOrganization.CameraManager>();
+        if (cameraManager != null)
         {
-            // Yeni material instance oluştur
-            _renderer.material = new Material(_renderer.material);
+            cameraManager.followObj = transform;
 
-            // Rengi HEMEN ayarla - SPAWN POZİSYONUNA GÖRE!
-            // İlk oyuncu x=0, ikinci oyuncu x=2
-            bool isFirstPlayer = transform.position.x < 1f;
-
-            Debug.Log($"=== SPAWNED DEBUG ===");
-            Debug.Log($"Object.InputAuthority: {Object.InputAuthority}");
-            Debug.Log($"Object.InputAuthority.PlayerId: {Object.InputAuthority.PlayerId}");
-            Debug.Log($"transform.position: {transform.position}");
-            Debug.Log($"Object.HasStateAuthority: {Object.HasStateAuthority}");
-            Debug.Log($"Object.HasInputAuthority: {Object.HasInputAuthority}");
-
-            if (isFirstPlayer)
-            {
-                _renderer.material.color = Color.green;
-                Debug.Log($"🟢 YEŞİL oyuncu spawn edildi! (PlayerId: {Object.InputAuthority.PlayerId})");
-            }
-            else
-            {
-                _renderer.material.color = Color.red;
-                Debug.Log($"🔴 KIRMIZI oyuncu spawn edildi! (PlayerId: {Object.InputAuthority.PlayerId})");
-            }
+            var cameraMovement = _camera.GetComponent<GameOrganization.CameraMovement>();
+            cameraMovement?.firstLook();
         }
+    }
+
+    private void SetupPlayerColor()
+    {
+        if (_renderer == null) return;
+
+        // Create material instance once
+        _renderer.material = new Material(_renderer.material);
+
+        // Set color based on spawn position
+        bool isFirstPlayer = transform.position.x < 1f;
+        _renderer.material.color = isFirstPlayer ? Color.green : Color.red;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"Player spawned at {transform.position} - Color: {(isFirstPlayer ? "GREEN" : "RED")}");
+#endif
     }
 
     public override void FixedUpdateNetwork()
@@ -109,30 +98,25 @@ public class PlayerController : NetworkBehaviour
 
         if (GetInput(out NetworkInputData data))
         {
-            // Hareket yönü
             Vector3 direction = data.direction;
-            bool isMoving = direction.magnitude > 0.1f;
+            // Use sqrMagnitude for better performance (avoids sqrt calculation)
+            bool isMoving = direction.sqrMagnitude > MOVEMENT_THRESHOLD;
 
-            // Velocity hesapla
             Vector3 velocity = NetworkedVelocity;
 
-            // Yatay hareket
+            // Horizontal movement
             if (isMoving)
             {
                 direction.Normalize();
 
-                // Hareket yönüne dön
+                // Rotate towards movement direction
                 Quaternion targetRotation = Quaternion.LookRotation(direction);
                 transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
 
-                // Hız hesapla - Sprint varsa çarpanı uygula
-                float currentSpeed = _moveSpeed;
-                if (data.isSprinting)
-                {
-                    currentSpeed *= sprintMultiplier;
-                }
+                // Calculate speed with sprint multiplier
+                float currentSpeed = data.isSprinting ? _moveSpeed * sprintMultiplier : _moveSpeed;
 
-                // Yatay velocity
+                // Apply horizontal velocity
                 velocity.x = direction.x * currentSpeed;
                 velocity.z = direction.z * currentSpeed;
             }
@@ -142,23 +126,21 @@ public class PlayerController : NetworkBehaviour
                 velocity.z = 0;
             }
 
-            // Gravity uygula
+            // Apply gravity
             if (_controller.isGrounded && velocity.y < 0)
             {
-                velocity.y = -2f; // Zemine yapış
+                velocity.y = GROUND_STICK_FORCE;
             }
             else
             {
-                velocity.y += _gravity * Runner.DeltaTime; // Yerçekimi
+                velocity.y += _gravity * Runner.DeltaTime;
             }
 
-            // CharacterController ile hareket
+            // Move character
             _controller.Move(velocity * Runner.DeltaTime);
 
-            // Velocity'yi network'e kaydet
+            // Update networked state
             NetworkedVelocity = velocity;
-
-            // Animasyon durumları
             IsWalking = isMoving;
             IsRunning = isMoving && data.isSprinting;
         }
@@ -166,7 +148,7 @@ public class PlayerController : NetworkBehaviour
 
     public override void Render()
     {
-        // Animator'ı her frame güncelle (tüm clientlarda, networked property'lerden)
+        // Update animator every frame (runs on all clients)
         if (_animator != null)
         {
             _animator.SetBool("Walk", IsWalking);

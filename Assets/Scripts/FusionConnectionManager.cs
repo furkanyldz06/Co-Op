@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
@@ -18,79 +17,76 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private GameMode _gameMode = GameMode.AutoHostOrClient;
 
     private NetworkRunner _runner;
-    private int _spawnIndex = 0; // Spawn sırası sayacı
+    private int _spawnIndex = 0;
+
+    // Cached input reference
+    private Keyboard _keyboard;
 
     private void Start()
     {
-        // NetworkRunner'ı başlat
+        // Cache keyboard reference
+        _keyboard = Keyboard.current;
+
         StartGame(_gameMode);
     }
 
     async void StartGame(GameMode mode)
     {
-        // NetworkRunner oluştur
         _runner = gameObject.AddComponent<NetworkRunner>();
         _runner.ProvideInput = true;
 
-        // Oyun başlatma ayarları
         var startGameArgs = new StartGameArgs()
         {
             GameMode = mode,
-            SessionName = "TestRoom", // Aynı oda adını kullanarak arkadaşınızla bağlanabilirsiniz
+            SessionName = "TestRoom",
             Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex),
             SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
         };
 
-        // Oyunu başlat
         await _runner.StartGame(startGameArgs);
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
-        Debug.Log($"Oyuncu katıldı: {player.PlayerId}");
-
-        // SERVER/HOST veya SHARED MODE'da spawn edebilir
         if (runner.IsServer || runner.GameMode == GameMode.Shared)
         {
-            // Spawn pozisyonu - spawn sırasına göre
             Vector3 spawnPosition = new Vector3(_spawnIndex * 2, 1, 0);
+            runner.Spawn(_playerPrefab, spawnPosition, Quaternion.identity, player);
 
-            // Player'ı spawn et
-            NetworkObject networkPlayerObject = runner.Spawn(_playerPrefab, spawnPosition, Quaternion.identity, player);
-
-            Debug.Log($"Player {player.PlayerId} spawn edildi pozisyon: {spawnPosition} (spawn index: {_spawnIndex})");
-
-            _spawnIndex++; // Bir sonraki oyuncu için index artır
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log($"Player {player.PlayerId} spawned at {spawnPosition}");
+#endif
+            _spawnIndex++;
         }
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
-        Debug.Log($"Oyuncu ayrıldı: {player.PlayerId}");
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"Player {player.PlayerId} left");
+#endif
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         var data = new NetworkInputData();
 
-        // Klavye inputu
-        var keyboard = Keyboard.current;
-        if (keyboard != null)
+        if (_keyboard != null)
         {
-            if (keyboard.wKey.isPressed)
-                data.direction += Vector3.forward;
+            // Use bitwise operations for better performance
+            if (_keyboard.wKey.isPressed)
+                data.direction.z += 1f;
 
-            if (keyboard.sKey.isPressed)
-                data.direction += Vector3.back;
+            if (_keyboard.sKey.isPressed)
+                data.direction.z -= 1f;
 
-            if (keyboard.aKey.isPressed)
-                data.direction += Vector3.left;
+            if (_keyboard.aKey.isPressed)
+                data.direction.x -= 1f;
 
-            if (keyboard.dKey.isPressed)
-                data.direction += Vector3.right;
+            if (_keyboard.dKey.isPressed)
+                data.direction.x += 1f;
 
-            // Shift tuşu - koşma
-            data.isSprinting = keyboard.leftShiftKey.isPressed;
+            data.isSprinting = _keyboard.leftShiftKey.isPressed;
         }
 
         input.Set(data);
