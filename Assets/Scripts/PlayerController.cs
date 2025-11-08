@@ -9,10 +9,10 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float _gravity = -20f;
 
     [Header("Sprint Settings")]
-    public float sprintMultiplier = 2f;
+    [SerializeField] private float _sprintMultiplier = 2f;
 
     [Header("Jump Settings")]
-    public float jumpForce = 8f;
+    [SerializeField] private float _jumpForce = 8f;
     [SerializeField] private float _groundCheckDistance = 0.5f;
     [SerializeField] private float _coyoteTime = 0.2f; // Time after leaving ground where jump is still allowed
     [SerializeField] private float _jumpBufferTime = 0.2f; // Time before landing where jump input is buffered
@@ -27,7 +27,9 @@ public class PlayerController : NetworkBehaviour
     // Networked Properties
     [Networked] public NetworkBool IsWalking { get; set; }
     [Networked] public NetworkBool IsRunning { get; set; }
+    [Networked] public NetworkBool IsJumping { get; set; }
     [Networked] private Vector3 NetworkedVelocity { get; set; }
+    [Networked] private int JumpCounter { get; set; } // Counter to trigger animation on all clients
 
     // Cached Components
     private MeshRenderer _renderer;
@@ -41,6 +43,7 @@ public class PlayerController : NetworkBehaviour
     private bool _isGrounded;
     private float _lastGroundedTime;
     private float _jumpRequestTime = -999f;
+    private int _lastJumpCounter = 0; // Track last jump counter for animation
 
     private void Awake()
     {
@@ -201,7 +204,7 @@ public class PlayerController : NetworkBehaviour
                 transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
 
                 // Calculate speed with sprint multiplier
-                float currentSpeed = data.isSprinting ? _moveSpeed * sprintMultiplier : _moveSpeed;
+                float currentSpeed = data.isSprinting ? _moveSpeed * _sprintMultiplier : _moveSpeed;
 
                 // Apply horizontal velocity
                 velocity.x = direction.x * currentSpeed;
@@ -228,13 +231,21 @@ public class PlayerController : NetworkBehaviour
 
             if (canJump && hasJumpRequest && notJumpingUp)
             {
-                velocity.y = jumpForce;
+                velocity.y = _jumpForce;
                 _jumpRequestTime = -999f; // Consume jump request
                 _lastGroundedTime = -999f; // Prevent double jump from coyote time
+
+                // Increment jump counter for network sync
+                JumpCounter++;
+                IsJumping = true;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log($"JUMP! Ground: {_isGrounded}, CoyoteTime: {timeSinceGrounded:F3}s, BufferTime: {timeSinceJumpRequest:F3}s");
 #endif
+            }
+            else if (_isGrounded)
+            {
+                IsJumping = false;
             }
 
             // Apply gravity
@@ -264,6 +275,17 @@ public class PlayerController : NetworkBehaviour
         {
             _animator.SetBool("Walk", IsWalking);
             _animator.SetBool("Run", IsRunning);
+
+            // Trigger jump animation when counter changes (network synced)
+            if (JumpCounter != _lastJumpCounter)
+            {
+                _animator.SetTrigger("Jump");
+                _lastJumpCounter = JumpCounter;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.Log($"[Render] Jump animation triggered! Counter: {JumpCounter}");
+#endif
+            }
         }
     }
 }
