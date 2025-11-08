@@ -5,31 +5,34 @@ public class PlayerController : NetworkBehaviour
 {
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 5f;
-    [SerializeField] private float _rotationSpeed = 10f; // Rotation speed (higher = faster, lower = slower)
+    [SerializeField] private float _rotationSpeed = 10f;
+    [SerializeField] private float _gravity = -20f;
 
     [Header("Animation")]
     [SerializeField] private Animator _animator;
 
-    // Network senkronize pozisyon ve rotasyon
-    [Networked] public Vector3 NetworkedPosition { get; set; }
-    [Networked] public Quaternion NetworkedRotation { get; set; }
     [Networked] public NetworkBool IsWalking { get; set; }
+    [Networked] private Vector3 NetworkedVelocity { get; set; }
 
     private MeshRenderer _renderer;
+    private CharacterController _controller;
 
     [SerializeField] private GameObject camera;
 
     private void Awake()
     {
-        // MeshRenderer'ı bul
         _renderer = GetComponent<MeshRenderer>();
+        _controller = GetComponent<CharacterController>();
     }
 
     public override void Spawned()
     {
-        // İlk pozisyonu ve rotasyonu network'e kaydet
-        NetworkedPosition = transform.position;
-        NetworkedRotation = transform.rotation;
+        // CharacterController'ı başlat
+        if (_controller != null)
+        {
+            _controller.enabled = false;
+            _controller.enabled = true;
+        }
 
         // SADECE KENDI KARAKTERIMIZDE KAMERAYI AKTIF ET!
         if (Object.HasInputAuthority)
@@ -98,38 +101,54 @@ public class PlayerController : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
-        // Sadece input yetkisi olan oyuncu hareket edebilir
+        if (_controller == null) return;
+
         if (GetInput(out NetworkInputData data))
         {
-            // Hareket varsa
-            bool isMoving = data.direction.magnitude > 0.1f;
+            // Hareket yönü
+            Vector3 direction = data.direction;
+            bool isMoving = direction.magnitude > 0.1f;
 
+            // Velocity hesapla
+            Vector3 velocity = NetworkedVelocity;
+
+            // Yatay hareket
             if (isMoving)
             {
-                // Hareket yönünü normalize et
-                data.direction.Normalize();
+                direction.Normalize();
 
-                // Hareketi uygula
-                Vector3 move = data.direction * _moveSpeed * Runner.DeltaTime;
-                transform.position += move;
-
-                // Hareket yönüne doğru yumuşakça dön (Lerp ile)
-                Quaternion targetRotation = Quaternion.LookRotation(data.direction);
+                // Hareket yönüne dön
+                Quaternion targetRotation = Quaternion.LookRotation(direction);
                 transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
 
-                // Network pozisyon ve rotasyonu güncelle
-                NetworkedPosition = transform.position;
-                NetworkedRotation = transform.rotation;
+                // Yatay velocity
+                velocity.x = direction.x * _moveSpeed;
+                velocity.z = direction.z * _moveSpeed;
+            }
+            else
+            {
+                velocity.x = 0;
+                velocity.z = 0;
             }
 
-            // Animasyon durumunu güncelle (network senkronize)
+            // Gravity uygula
+            if (_controller.isGrounded && velocity.y < 0)
+            {
+                velocity.y = -2f; // Zemine yapış
+            }
+            else
+            {
+                velocity.y += _gravity * Runner.DeltaTime; // Yerçekimi
+            }
+
+            // CharacterController ile hareket
+            _controller.Move(velocity * Runner.DeltaTime);
+
+            // Velocity'yi network'e kaydet
+            NetworkedVelocity = velocity;
+
+            // Animasyon
             IsWalking = isMoving;
-        }
-        else
-        {
-            // Input yetkisi yoksa network pozisyon ve rotasyonu kullan
-            transform.position = NetworkedPosition;
-            transform.rotation = NetworkedRotation;
         }
     }
 

@@ -383,7 +383,8 @@ GameObject:
   - component: {fileID: 8447527742720633234}
   - component: {fileID: 6646750095478039502}
   - component: {fileID: 5187379185714689782}
-  - component: {fileID: 2033004693824549860}
+  - component: {fileID: 5986452419544965977}
+  - component: {fileID: 6471328661899710326}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -499,9 +500,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _moveSpeed: 5
   _rotationSpeed: 10
+  _gravity: -20
   _animator: {fileID: 6359026049647564185}
-  _NetworkedPosition: {x: 0, y: 0, z: 0}
-  _NetworkedRotation: {x: 0, y: 0, z: 0, w: 0}
   _IsWalking:
     _value: 0
   camera: {fileID: 147775395530365571}
@@ -523,9 +523,34 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 6646750095478039502}
-  - {fileID: 2033004693824549860}
+  - {fileID: 6471328661899710326}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &2033004693824549860
+--- !u!143 &5986452419544965977
+CharacterController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4513885127763347060}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Height: 2
+  m_Radius: 0.5
+  m_SlopeLimit: 45
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.08
+  m_MinMoveDistance: 0.001
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &6471328661899710326
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -534,14 +559,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 4513885127763347060}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Script: {fileID: 11500000, guid: 378411a89480da345945c2f888327a2d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   _stateAuthorityChangeErrorCorrectionDelta: 0
-  SyncScale: 0
-  SyncParent: 0
-  _autoAOIOverride: 1
-  DisableSharedModeInterpolation: 0
+  gravity: -20
+  jumpImpulse: 8
+  acceleration: 10
+  braking: 10
+  maxSpeed: 2
+  rotationSpeed: 15
 --- !u!1001 &924459624765222844
 PrefabInstance:
   m_ObjectHideFlags: 0
