@@ -496,8 +496,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _moveSpeed: 5
   _rotationSpeed: 10
+  _animator: {fileID: 6359026049647564185}
   _NetworkedPosition: {x: 0, y: 0, z: 0}
   _NetworkedRotation: {x: 0, y: 0, z: 0, w: 0}
+  _IsWalking:
+    _value: 0
   camera: {fileID: 147775395530365571}
 --- !u!114 &5187379185714689782
 MonoBehaviour:

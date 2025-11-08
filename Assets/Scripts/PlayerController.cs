@@ -5,11 +5,15 @@ public class PlayerController : NetworkBehaviour
 {
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 5f;
-    [SerializeField] private float _rotationSpeed = 10f; // Dönüş hızı (yüksek = hızlı, düşük = yavaş)
+    [SerializeField] private float _rotationSpeed = 10f; // Rotation speed (higher = faster, lower = slower)
+
+    [Header("Animation")]
+    [SerializeField] private Animator _animator;
 
     // Network senkronize pozisyon ve rotasyon
     [Networked] public Vector3 NetworkedPosition { get; set; }
     [Networked] public Quaternion NetworkedRotation { get; set; }
+    [Networked] public NetworkBool IsWalking { get; set; }
 
     private MeshRenderer _renderer;
 
@@ -64,7 +68,9 @@ public class PlayerController : NetworkBehaviour
         if (GetInput(out NetworkInputData data))
         {
             // Hareket varsa
-            if (data.direction.magnitude > 0.1f)
+            bool isMoving = data.direction.magnitude > 0.1f;
+
+            if (isMoving)
             {
                 // Hareket yönünü normalize et
                 data.direction.Normalize();
@@ -81,12 +87,21 @@ public class PlayerController : NetworkBehaviour
                 NetworkedPosition = transform.position;
                 NetworkedRotation = transform.rotation;
             }
+
+            // Animasyon durumunu güncelle (network senkronize)
+            IsWalking = isMoving;
         }
         else
         {
             // Input yetkisi yoksa network pozisyon ve rotasyonu kullan
             transform.position = NetworkedPosition;
             transform.rotation = NetworkedRotation;
+        }
+
+        // Animator'ı güncelle (tüm clientlarda)
+        if (_animator != null)
+        {
+            _animator.SetBool("Walk", IsWalking);
         }
     }
 }
