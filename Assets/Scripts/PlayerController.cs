@@ -6,16 +6,18 @@ public class PlayerController : NetworkBehaviour
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 5f;
 
-    // Network senkronize pozisyon ve renk
+    // Network senkronize pozisyon
     [Networked] public Vector3 NetworkedPosition { get; set; }
-    [Networked] public int PlayerIndex { get; set; }
 
     private MeshRenderer _renderer;
+
+    [SerializeField] private GameObject camera;
 
     private void Awake()
     {
         // MeshRenderer'ı bul
         _renderer = GetComponent<MeshRenderer>();
+        camera.transform.parent = null;
     }
 
     public override void Spawned()
@@ -23,28 +25,32 @@ public class PlayerController : NetworkBehaviour
         // İlk pozisyonu network'e kaydet
         NetworkedPosition = transform.position;
 
-        // Player index'i ayarla (sadece state authority olan yapabilir)
-        if (Object.HasStateAuthority)
-        {
-            PlayerIndex = Object.InputAuthority.PlayerId;
-        }
-
         // Material oluştur (her oyuncu için ayrı material instance)
         if (_renderer != null)
         {
             // Yeni material instance oluştur
             _renderer.material = new Material(_renderer.material);
 
-            // İlk giren yeşil (PlayerIndex 0), ikinci giren kırmızı (PlayerIndex 1)
-            if (PlayerIndex == 0)
+            // Rengi HEMEN ayarla - SPAWN POZİSYONUNA GÖRE!
+            // İlk oyuncu x=0, ikinci oyuncu x=2
+            bool isFirstPlayer = transform.position.x < 1f;
+
+            Debug.Log($"=== SPAWNED DEBUG ===");
+            Debug.Log($"Object.InputAuthority: {Object.InputAuthority}");
+            Debug.Log($"Object.InputAuthority.PlayerId: {Object.InputAuthority.PlayerId}");
+            Debug.Log($"transform.position: {transform.position}");
+            Debug.Log($"Object.HasStateAuthority: {Object.HasStateAuthority}");
+            Debug.Log($"Object.HasInputAuthority: {Object.HasInputAuthority}");
+
+            if (isFirstPlayer)
             {
                 _renderer.material.color = Color.green;
-                Debug.Log($"YEŞİL oyuncu spawn edildi! (PlayerIndex: {PlayerIndex})");
+                Debug.Log($"🟢 YEŞİL oyuncu spawn edildi! (PlayerId: {Object.InputAuthority.PlayerId})");
             }
             else
             {
                 _renderer.material.color = Color.red;
-                Debug.Log($"KIRMIZI oyuncu spawn edildi! (PlayerIndex: {PlayerIndex})");
+                Debug.Log($"🔴 KIRMIZI oyuncu spawn edildi! (PlayerId: {Object.InputAuthority.PlayerId})");
             }
         }
     }

@@ -14,6 +14,7 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private NetworkPrefabRef _playerPrefab;
 
     private NetworkRunner _runner;
+    private int _spawnIndex = 0; // Spawn sırası sayacı
 
     private void Start()
     {
@@ -47,13 +48,15 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
         // SADECE SERVER/HOST SPAWN EDEBİLİR!
         if (runner.IsServer)
         {
-            // Spawn pozisyonu - ilk oyuncu (0,1,0), ikinci oyuncu (2,1,0)
-            Vector3 spawnPosition = new Vector3(player.PlayerId * 2, 1, 0);
+            // Spawn pozisyonu - spawn sırasına göre
+            Vector3 spawnPosition = new Vector3(_spawnIndex * 2, 1, 0);
 
             // Player'ı spawn et
             NetworkObject networkPlayerObject = runner.Spawn(_playerPrefab, spawnPosition, Quaternion.identity, player);
 
-            Debug.Log($"Player {player.PlayerId} spawn edildi pozisyon: {spawnPosition}");
+            Debug.Log($"Player {player.PlayerId} spawn edildi pozisyon: {spawnPosition} (spawn index: {_spawnIndex})");
+
+            _spawnIndex++; // Bir sonraki oyuncu için index artır
         }
     }
 
