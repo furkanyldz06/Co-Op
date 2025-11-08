@@ -84,6 +84,9 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 
             if (keyboard.dKey.isPressed)
                 data.direction += Vector3.right;
+
+            // Shift tuşu - koşma
+            data.isSprinting = keyboard.leftShiftKey.isPressed;
         }
 
         input.Set(data);
@@ -110,5 +113,6 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 public struct NetworkInputData : INetworkInput
 {
     public Vector3 direction;
+    public NetworkBool isSprinting;
 }
 

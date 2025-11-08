@@ -8,6 +8,9 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float _rotationSpeed = 10f;
     [SerializeField] private float _gravity = -20f;
 
+    [Header("Sprint Settings")]
+    public float sprintMultiplier = 2f; // Koşma hız çarpanı (public - Inspector'dan ayarlanabilir)
+
     [Header("Animation")]
     [SerializeField] private Animator _animator;
 
@@ -121,9 +124,16 @@ public class PlayerController : NetworkBehaviour
                 Quaternion targetRotation = Quaternion.LookRotation(direction);
                 transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
 
+                // Hız hesapla - Sprint varsa çarpanı uygula
+                float currentSpeed = _moveSpeed;
+                if (data.isSprinting)
+                {
+                    currentSpeed *= sprintMultiplier;
+                }
+
                 // Yatay velocity
-                velocity.x = direction.x * _moveSpeed;
-                velocity.z = direction.z * _moveSpeed;
+                velocity.x = direction.x * currentSpeed;
+                velocity.z = direction.z * currentSpeed;
             }
             else
             {
