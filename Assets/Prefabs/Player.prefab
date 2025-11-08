@@ -314,7 +314,7 @@ Transform:
   m_GameObject: {fileID: 1114650805691773690}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 2}
+  m_LocalPosition: {x: 0, y: 3, z: 2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -505,8 +505,11 @@ MonoBehaviour:
   _moveSpeed: 5
   _rotationSpeed: 10
   _gravity: -20
+  sprintMultiplier: 2
   _animator: {fileID: 6359026049647564185}
   _IsWalking:
+    _value: 0
+  _IsRunning:
     _value: 0
   camera: {fileID: 147775395530365571}
 --- !u!114 &5187379185714689782

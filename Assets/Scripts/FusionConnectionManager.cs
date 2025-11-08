@@ -13,13 +13,17 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private NetworkRunner _runnerPrefab;
     [SerializeField] private NetworkPrefabRef _playerPrefab;
 
+    [Header("Game Mode")]
+    [Tooltip("AutoHostOrClient = Mac/Windows (Client-Server)\nShared = WebGL (Peer-to-Peer)")]
+    [SerializeField] private GameMode _gameMode = GameMode.AutoHostOrClient;
+
     private NetworkRunner _runner;
     private int _spawnIndex = 0; // Spawn sırası sayacı
 
     private void Start()
     {
         // NetworkRunner'ı başlat
-        StartGame(GameMode.AutoHostOrClient);
+        StartGame(_gameMode);
     }
 
     async void StartGame(GameMode mode)
@@ -45,8 +49,8 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     {
         Debug.Log($"Oyuncu katıldı: {player.PlayerId}");
 
-        // SADECE SERVER/HOST SPAWN EDEBİLİR!
-        if (runner.IsServer)
+        // SERVER/HOST veya SHARED MODE'da spawn edebilir
+        if (runner.IsServer || runner.GameMode == GameMode.Shared)
         {
             // Spawn pozisyonu - spawn sırasına göre
             Vector3 spawnPosition = new Vector3(_spawnIndex * 2, 1, 0);

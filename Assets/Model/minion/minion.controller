@@ -21,7 +21,7 @@ AnimatorState:
   m_MirrorParameterActive: 0
   m_CycleOffsetParameterActive: 0
   m_TimeParameterActive: 0
-  m_Motion: {fileID: -203655887218126122, guid: f67a425ba71d14b1a865890412df9e24, type: 3}
+  m_Motion: {fileID: -203655887218126122, guid: 3f56fc977b1c0453caf85682779498dc, type: 3}
   m_Tag: 
   m_SpeedParameter: 
   m_MirrorParameter: 
@@ -144,7 +144,7 @@ AnimatorState:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: mixamo_com
-  m_Speed: 1
+  m_Speed: 1.5
   m_CycleOffset: 0
   m_Transitions:
   - {fileID: 4430742722577906164}
@@ -158,7 +158,7 @@ AnimatorState:
   m_MirrorParameterActive: 0
   m_CycleOffsetParameterActive: 0
   m_TimeParameterActive: 0
-  m_Motion: {fileID: -203655887218126122, guid: 535830fb25a964a598b81458af6cc630, type: 3}
+  m_Motion: {fileID: -203655887218126122, guid: eb91894422a834352966993cb1923b3e, type: 3}
   m_Tag: 
   m_SpeedParameter: 
   m_MirrorParameter: 
