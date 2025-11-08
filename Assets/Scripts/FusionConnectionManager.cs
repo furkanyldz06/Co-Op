@@ -11,7 +11,8 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("Fusion Settings")]
     [SerializeField] private NetworkRunner _runnerPrefab;
-    
+    [SerializeField] private NetworkPrefabRef _playerPrefab;
+
     private NetworkRunner _runner;
 
     private void Start()
@@ -42,6 +43,18 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
         Debug.Log($"Oyuncu katıldı: {player.PlayerId}");
+
+        // SADECE SERVER/HOST SPAWN EDEBİLİR!
+        if (runner.IsServer)
+        {
+            // Spawn pozisyonu - ilk oyuncu (0,1,0), ikinci oyuncu (2,1,0)
+            Vector3 spawnPosition = new Vector3(player.PlayerId * 2, 1, 0);
+
+            // Player'ı spawn et
+            NetworkObject networkPlayerObject = runner.Spawn(_playerPrefab, spawnPosition, Quaternion.identity, player);
+
+            Debug.Log($"Player {player.PlayerId} spawn edildi pozisyon: {spawnPosition}");
+        }
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
