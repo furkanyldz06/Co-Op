@@ -131,8 +131,11 @@ public class PlayerController : NetworkBehaviour
             transform.position = NetworkedPosition;
             transform.rotation = NetworkedRotation;
         }
+    }
 
-        // Animator'ı güncelle (tüm clientlarda)
+    public override void Render()
+    {
+        // Animator'ı her frame güncelle (tüm clientlarda, IsWalking networked property'den)
         if (_animator != null)
         {
             _animator.SetBool("Walk", IsWalking);
