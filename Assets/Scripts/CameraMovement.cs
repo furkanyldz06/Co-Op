@@ -35,21 +35,21 @@ namespace GameOrganization
         {
             Vector3 targetPos = cameraManager.lookObj.position;
             Quaternion rotation = Quaternion.LookRotation(targetPos - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * 2f);
+            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * cameraManager.rotSpeed);
         }
 
         void Look2()
         {
             Vector3 targetPos = cameraManager.followObj.position;
             Quaternion rotation = Quaternion.LookRotation(targetPos - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * 2f);
+            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * cameraManager.rotSpeed);
         }
 
         void Move()
         {
             Vector3 desiredPosition = cameraManager.followObj.position + cameraManager.offset;
             // Time.deltaTime ile frame-independent smooth movement
-            float smoothFactor = cameraManager.smoothSpeed * Time.deltaTime * 50f;
+            float smoothFactor = cameraManager.smoothSpeed * Time.deltaTime * cameraManager.moveSpeed;
             Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothFactor);
             transform.position = smoothedPosition;
         }

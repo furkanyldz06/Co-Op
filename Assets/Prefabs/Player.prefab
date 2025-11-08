@@ -157,6 +157,8 @@ MonoBehaviour:
   lookObj: {fileID: 4165843881679274558}
   smoothSpeed: 0.075
   smoothSpeed2: 0.075
+  moveSpeed: 30
+  rotSpeed: 1
   followPermission: 1
   offset: {x: 0, y: 6, z: -9}
 --- !u!114 &6419345537420992460

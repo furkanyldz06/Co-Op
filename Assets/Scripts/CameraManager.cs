@@ -10,6 +10,8 @@ namespace GameOrganization
         public Transform lookObj;
         public float smoothSpeed;
         public float smoothSpeed2;
+        public float moveSpeed;
+        public float rotSpeed;
 
         public bool followPermission;
         [Header("Follow Dynamic Smooth Angle")]
