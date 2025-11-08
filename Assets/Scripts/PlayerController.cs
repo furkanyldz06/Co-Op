@@ -15,6 +15,7 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private Animator _animator;
 
     [Networked] public NetworkBool IsWalking { get; set; }
+    [Networked] public NetworkBool IsRunning { get; set; }
     [Networked] private Vector3 NetworkedVelocity { get; set; }
 
     private MeshRenderer _renderer;
@@ -157,17 +158,19 @@ public class PlayerController : NetworkBehaviour
             // Velocity'yi network'e kaydet
             NetworkedVelocity = velocity;
 
-            // Animasyon
+            // Animasyon durumları
             IsWalking = isMoving;
+            IsRunning = isMoving && data.isSprinting;
         }
     }
 
     public override void Render()
     {
-        // Animator'ı her frame güncelle (tüm clientlarda, IsWalking networked property'den)
+        // Animator'ı her frame güncelle (tüm clientlarda, networked property'lerden)
         if (_animator != null)
         {
             _animator.SetBool("Walk", IsWalking);
+            _animator.SetBool("Run", IsRunning);
         }
     }
 }
