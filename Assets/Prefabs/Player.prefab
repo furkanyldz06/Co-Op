@@ -69,7 +69,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.3
-  far clip plane: 50
+  far clip plane: 150
   field of view: 75
   orthographic: 0
   orthographic size: 5
@@ -161,6 +161,10 @@ MonoBehaviour:
   rotSpeed: 1
   followPermission: 1
   offset: {x: 0, y: 6, z: -9}
+  zoomSpeed: 30
+  minZoomDistance: 10
+  maxZoomDistance: 30
+  currentZoomDistance: 10
 --- !u!114 &6419345537420992460
 MonoBehaviour:
   m_ObjectHideFlags: 0

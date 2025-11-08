@@ -14,8 +14,15 @@ namespace GameOrganization
         public float rotSpeed;
 
         public bool followPermission;
+
         [Header("Follow Dynamic Smooth Angle")]
         public Vector3 offset;
+
+        [Header("Zoom Settings")]
+        public float zoomSpeed = 2f;
+        public float minZoomDistance = 3f;
+        public float maxZoomDistance = 15f;
+        public float currentZoomDistance = 8f;
 
         // public CameraAngleOfView cameraAngleOfView;
 

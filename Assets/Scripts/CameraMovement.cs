@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace GameOrganization
 {
@@ -24,10 +25,37 @@ namespace GameOrganization
         {
             if (cameraManager.followObj)
             {
+                HandleZoom();
                 Look();
                 Move();
                 if(cameraManager.followPermission)
                     Sensitivity();
+            }
+        }
+
+        void HandleZoom()
+        {
+            // Mouse scroll input - YENİ INPUT SYSTEM
+            var mouse = Mouse.current;
+            if (mouse == null) return;
+
+            float scrollInput = mouse.scroll.ReadValue().y / 120f; // Normalize scroll value
+
+            if (scrollInput != 0f)
+            {
+                // Zoom in/out
+                cameraManager.currentZoomDistance -= scrollInput * cameraManager.zoomSpeed;
+
+                // Clamp zoom distance
+                cameraManager.currentZoomDistance = Mathf.Clamp(
+                    cameraManager.currentZoomDistance,
+                    cameraManager.minZoomDistance,
+                    cameraManager.maxZoomDistance
+                );
+
+                // Update offset magnitude based on zoom
+                Vector3 offsetDirection = cameraManager.offset.normalized;
+                cameraManager.offset = offsetDirection * cameraManager.currentZoomDistance;
             }
         }
 
