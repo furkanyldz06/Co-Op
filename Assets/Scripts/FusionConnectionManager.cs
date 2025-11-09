@@ -19,31 +19,48 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkRunner _runner;
     private int _spawnIndex = 0;
 
-    // Cached input reference
-    private Keyboard _keyboard;
-
     private void Start()
     {
-        // Cache keyboard reference
-        _keyboard = Keyboard.current;
-
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // WebGL MUST use Shared mode (peer-to-peer)
+        StartGame(GameMode.Shared);
+#else
+        // Desktop uses AutoHostOrClient (client-server)
         StartGame(_gameMode);
+#endif
     }
 
     async void StartGame(GameMode mode)
     {
-        _runner = gameObject.AddComponent<NetworkRunner>();
-        _runner.ProvideInput = true;
-
-        var startGameArgs = new StartGameArgs()
+        try
         {
-            GameMode = mode,
-            SessionName = "TestRoom",
-            Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex),
-            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
-        };
+            _runner = gameObject.AddComponent<NetworkRunner>();
+            _runner.ProvideInput = true;
 
-        await _runner.StartGame(startGameArgs);
+            var startGameArgs = new StartGameArgs()
+            {
+                GameMode = mode,
+                SessionName = "TestRoom",
+                Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex),
+                SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+            };
+
+            Debug.Log($"[Fusion] Starting game in {mode} mode...");
+            var result = await _runner.StartGame(startGameArgs);
+
+            if (result.Ok)
+            {
+                Debug.Log("[Fusion] Successfully connected!");
+            }
+            else
+            {
+                Debug.LogError($"[Fusion] Failed to start: {result.ShutdownReason}");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[Fusion] Exception during StartGame: {ex.Message}\n{ex.StackTrace}");
+        }
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -71,26 +88,28 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     {
         var data = new NetworkInputData();
 
-        if (_keyboard != null)
+        // Get keyboard safely (WebGL compatible)
+        var keyboard = Keyboard.current;
+        if (keyboard != null)
         {
             // Movement input
-            if (_keyboard.wKey.isPressed)
+            if (keyboard.wKey.isPressed)
                 data.direction.z += 1f;
 
-            if (_keyboard.sKey.isPressed)
+            if (keyboard.sKey.isPressed)
                 data.direction.z -= 1f;
 
-            if (_keyboard.aKey.isPressed)
+            if (keyboard.aKey.isPressed)
                 data.direction.x -= 1f;
 
-            if (_keyboard.dKey.isPressed)
+            if (keyboard.dKey.isPressed)
                 data.direction.x += 1f;
 
             // Sprint input
-            data.isSprinting = _keyboard.leftShiftKey.isPressed;
+            data.isSprinting = keyboard.leftShiftKey.isPressed;
 
             // Jump input - use isPressed instead of wasPressedThisFrame for better reliability
-            data.isJumping = _keyboard.spaceKey.isPressed;
+            data.isJumping = keyboard.spaceKey.isPressed;
         }
 
         input.Set(data);
