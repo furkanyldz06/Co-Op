@@ -131,12 +131,9 @@ public class PlayerController : NetworkBehaviour
         {
             SetupLocalCamera();
 
-            // Set player name from UI (only input authority sets it)
-            if (Object.HasStateAuthority)
-            {
-                PlayerName = PlayerNameUI.PlayerName;
-                Debug.Log($"[PlayerController] Player name set to: {PlayerName}");
-            }
+            // Set player name from UI (input authority always sets it)
+            PlayerName = PlayerNameUI.PlayerName;
+            Debug.Log($"[PlayerController] Player name set to: {PlayerName}");
         }
         else if (_camera != null)
         {
@@ -315,10 +312,11 @@ public class PlayerController : NetworkBehaviour
         // Update name text to face the active camera (not Main Camera)
         if (_nameText != null)
         {
-            // Update name if it changed
-            if (_nameText.text != PlayerName && !string.IsNullOrEmpty(PlayerName))
+            // Update name text (show "Player" if name is empty)
+            string displayName = string.IsNullOrEmpty(PlayerName) ? "Player" : PlayerName;
+            if (_nameText.text != displayName)
             {
-                _nameText.text = PlayerName;
+                _nameText.text = displayName;
             }
 
             // Get the canvas
