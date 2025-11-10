@@ -431,6 +431,7 @@ public class PlayerController : NetworkBehaviour
             if (_carriedCubeCol != null && !_carriedCubeCol.isTrigger)
             {
                 _carriedCubeCol.isTrigger = true;
+                _carriedCubeCol.enabled = false;
                 Debug.LogWarning($"[EnforcePickupState] Fixed collider trigger!");
             }
 
@@ -482,6 +483,7 @@ public class PlayerController : NetworkBehaviour
         if (_carriedCubeCol != null)
         {
             _carriedCubeCol.isTrigger = false;
+            _carriedCubeCol.enabled = true;
         }
 
         // Unparent
@@ -527,6 +529,7 @@ public class PlayerController : NetworkBehaviour
         if (col != null)
         {
             col.isTrigger = true;
+            col.enabled = false;
         }
 
         // THEN: Update networked state (server-side)
@@ -576,6 +579,7 @@ public class PlayerController : NetworkBehaviour
             if (col != null)
             {
                 col.isTrigger = true;
+                col.enabled = false;
             }
         }
 
@@ -607,6 +611,7 @@ public class PlayerController : NetworkBehaviour
         if (col != null)
         {
             col.isTrigger = false;
+            col.enabled = true;
         }
 
         // Unparent the cube
@@ -739,6 +744,7 @@ public class PlayerController : NetworkBehaviour
                 if (col != null)
                 {
                     col.isTrigger = true;
+                    col.enabled = false;
                 }
             }
         }
