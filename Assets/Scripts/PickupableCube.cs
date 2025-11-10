@@ -47,31 +47,8 @@ public class PickupableCube : NetworkBehaviour
 
     public override void Render()
     {
-        // Update physics based on pickup state
-        if (_collider != null)
-        {
-            // When picked up: set as trigger
-            if (IsPickedUp)
-            {
-                _collider.isTrigger = true;
-
-                // After setting trigger, make rigidbody kinematic
-                if (_rigidbody != null)
-                {
-                    _rigidbody.isKinematic = true;
-                }
-            }
-            else
-            {
-                _collider.isTrigger = false;
-
-                // When dropped, restore rigidbody to non-kinematic
-                if (_rigidbody != null)
-                {
-                    _rigidbody.isKinematic = false;
-                }
-            }
-        }
+        // Physics is now handled by PlayerController for better synchronization
+        // This prevents conflicts between server and client updates
     }
 
 #if UNITY_EDITOR

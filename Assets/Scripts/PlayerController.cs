@@ -63,6 +63,10 @@ public class PlayerController : NetworkBehaviour
     private float _jumpRequestTime = -999f;
     private int _lastJumpCounter = 0; // Track last jump counter for animation
 
+    // Carry layer animation
+    private float _currentCarryWeight = 0f; // Current carry layer weight
+    private const float CARRY_TRANSITION_SPEED = 5f; // Speed of transition (higher = faster)
+
     private void Awake()
     {
         _renderer = GetComponent<MeshRenderer>();
@@ -409,6 +413,8 @@ public class PlayerController : NetworkBehaviour
         if (rb != null)
         {
             rb.isKinematic = true;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
         }
 
         if (col != null)
@@ -424,8 +430,50 @@ public class PlayerController : NetworkBehaviour
         cube.IsPickedUp = true;
         cube.PickedUpBy = Object.InputAuthority;
 
+        // Call RPC to all clients to trigger animation and setup
+        RPC_OnPickupConfirmed(cubeId);
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"[PlayerController] Server: Picked up cube {cubeId}");
+#endif
+    }
+
+    /// <summary>
+    /// RPC to confirm pickup on all clients (called by server, executed on all clients)
+    /// </summary>
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_OnPickupConfirmed(NetworkBehaviourId cubeId, RpcInfo info = default)
+    {
+        // Trigger Take animation
+        if (_animator != null)
+        {
+            _animator.SetTrigger("Take");
+        }
+
+        // Force carry weight to start transitioning
+        _currentCarryWeight = 0f;
+
+        // Make sure rigidbody is kinematic on all clients
+        if (Runner.TryFindBehaviour(cubeId, out PickupableCube cube))
+        {
+            Rigidbody rb = cube.GetComponent<Rigidbody>();
+            Collider col = cube.GetComponent<Collider>();
+
+            if (rb != null)
+            {
+                rb.isKinematic = true;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+
+            if (col != null)
+            {
+                col.isTrigger = true;
+            }
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[PlayerController] Client: Pickup confirmed for cube {cubeId}");
 #endif
     }
 
@@ -485,12 +533,15 @@ public class PlayerController : NetworkBehaviour
 #endif
             }
 
-            // Update Carry layer weight based on IsCarrying state
+            // Update Carry layer weight with smooth transition (1 second)
             int carryLayerIndex = _animator.GetLayerIndex("Carry");
             if (carryLayerIndex >= 0)
             {
                 float targetWeight = IsCarrying ? 1f : 0f;
-                _animator.SetLayerWeight(carryLayerIndex, targetWeight);
+
+                // Smoothly interpolate to target weight
+                _currentCarryWeight = Mathf.MoveTowards(_currentCarryWeight, targetWeight, CARRY_TRANSITION_SPEED * Time.deltaTime);
+                _animator.SetLayerWeight(carryLayerIndex, _currentCarryWeight);
             }
         }
 
@@ -545,15 +596,46 @@ public class PlayerController : NetworkBehaviour
             if (Runner.TryFindBehaviour(CarriedCubeId, out PickupableCube cube))
             {
                 _carriedCube = cube;
+
+                // Immediately setup the cube when found
+                Rigidbody rb = cube.GetComponent<Rigidbody>();
+                Collider col = cube.GetComponent<Collider>();
+
+                if (rb != null)
+                {
+                    rb.isKinematic = true;
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
+
+                if (col != null)
+                {
+                    col.isTrigger = true;
+                }
             }
         }
 
         // Update cube position to follow left hand
         if (_carriedCube != null)
         {
-            _carriedCube.transform.SetParent(_leftHandBone);
+            // Make sure cube is parented to hand
+            if (_carriedCube.transform.parent != _leftHandBone)
+            {
+                _carriedCube.transform.SetParent(_leftHandBone);
+            }
+
+            // Force position and rotation every frame
             _carriedCube.transform.localPosition = _cubeHoldOffset;
             _carriedCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+
+            // Double-check rigidbody is kinematic
+            Rigidbody rb = _carriedCube.GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic)
+            {
+                rb.isKinematic = true;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
         }
     }
 
