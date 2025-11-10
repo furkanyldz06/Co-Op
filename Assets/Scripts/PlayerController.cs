@@ -131,9 +131,21 @@ public class PlayerController : NetworkBehaviour
         {
             SetupLocalCamera();
 
-            // Set player name from UI (input authority always sets it)
-            PlayerName = PlayerNameUI.PlayerName;
-            Debug.Log($"[PlayerController] Player name set to: {PlayerName}");
+            // Set player name from UI
+            string playerName = PlayerNameUI.PlayerName;
+
+            if (Object.HasStateAuthority)
+            {
+                // Host/Shared mode: Set directly
+                PlayerName = playerName;
+                Debug.Log($"[PlayerController] Player name set directly: {PlayerName}");
+            }
+            else
+            {
+                // Client mode: Use RPC to tell host
+                RPC_SetPlayerName(playerName);
+                Debug.Log($"[PlayerController] Requesting name via RPC: {playerName}");
+            }
         }
         else if (_camera != null)
         {
@@ -358,5 +370,14 @@ public class PlayerController : NetworkBehaviour
                 }
             }
         }
+    }
+
+    // RPC to set player name (called by client, executed on host)
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_SetPlayerName(string name)
+    {
+        // Host sets the networked property
+        PlayerName = name;
+        Debug.Log($"[RPC] Player name set by host: {PlayerName}");
     }
 }
