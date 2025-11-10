@@ -369,22 +369,72 @@ public class PlayerController : NetworkBehaviour
 
         if (closestCube != null)
         {
-            // Pick up the cube
-            PickupCube(closestCube);
+            // ========================================
+            // GUARANTEED PICKUP - ALL STEPS EXECUTED IMMEDIATELY
+            // ========================================
+
+            Debug.Log($"[TryPickupCube] STARTING GUARANTEED PICKUP - Distance: {closestDistance:F2}");
+
+            // STEP 1: Get components
+            Rigidbody rb = closestCube.GetComponent<Rigidbody>();
+            Collider col = closestCube.GetComponent<Collider>();
+
+            Debug.Log($"[TryPickupCube] STEP 1: Components found - RB: {rb != null}, Col: {col != null}");
+
+            // STEP 2: Freeze physics IMMEDIATELY
+            if (rb != null)
+            {
+                rb.isKinematic = true;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.useGravity = false;
+                Debug.Log($"[TryPickupCube] STEP 2: Physics FROZEN - Kinematic: {rb.isKinematic}");
+            }
+
+            if (col != null)
+            {
+                col.isTrigger = true;
+                Debug.Log($"[TryPickupCube] STEP 2: Collider set to trigger: {col.isTrigger}");
+            }
+
+            // STEP 3: Parent to hand IMMEDIATELY
+            if (_leftHandBone != null)
+            {
+                closestCube.transform.SetParent(_leftHandBone);
+                closestCube.transform.localPosition = _cubeHoldOffset;
+                closestCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+                Debug.Log($"[TryPickupCube] STEP 3: Parented to hand - Parent: {closestCube.transform.parent.name}");
+            }
+
+            // STEP 4: Trigger animation IMMEDIATELY
+            if (_animator != null)
+            {
+                _animator.SetTrigger("Take");
+                Debug.Log($"[TryPickupCube] STEP 4: Take animation triggered");
+            }
+
+            // STEP 5: Set carry layer weight to start transitioning
+            int carryLayerIndex = _animator.GetLayerIndex("Carry");
+            if (carryLayerIndex >= 0)
+            {
+                // Start from 0 and let it transition to 1
+                _currentCarryWeight = 0f;
+                Debug.Log($"[TryPickupCube] STEP 5: Carry weight reset to 0, will transition to 1");
+            }
+
+            // STEP 6: Send RPC to server
+            RPC_RequestPickup(closestCube.Id);
+            Debug.Log($"[TryPickupCube] STEP 6: RPC sent to server");
+
+            Debug.Log($"[TryPickupCube] ✅ ALL STEPS COMPLETED SUCCESSFULLY!");
+        }
+        else
+        {
+            Debug.Log($"[TryPickupCube] ❌ No cube found in range");
         }
     }
 
-    private void PickupCube(PickupableCube cube)
-    {
-        if (cube == null || _leftHandBone == null) return;
 
-        // Call RPC to request pickup from server
-        RPC_RequestPickup(cube.Id);
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        Debug.Log($"[PlayerController] Requesting pickup of cube: {cube.name}");
-#endif
-    }
 
     private void DropCube()
     {
