@@ -21,25 +21,33 @@ public class PlayerNameUI : MonoBehaviour
 
     private void Awake()
     {
+        // Cache connection manager reference
         _connectionManager = FindFirstObjectByType<FusionConnectionManager>();
-        
+
         if (_connectionManager == null)
         {
             Debug.LogError("[PlayerNameUI] FusionConnectionManager not found!");
             return;
         }
 
-        // Setup UI
+        // Disable connection manager until name is entered
+        _connectionManager.enabled = false;
+
+        // Setup button listener
         if (_startButton != null)
         {
             _startButton.onClick.AddListener(OnStartButtonClicked);
         }
 
+        // Setup input field
         if (_nameInputField != null)
         {
             _nameInputField.characterLimit = _maxNameLength;
             _nameInputField.onValueChanged.AddListener(OnNameChanged);
-            
+
+            // Enable submit on Enter key
+            _nameInputField.onSubmit.AddListener(OnSubmit);
+
             // Focus input field
             _nameInputField.Select();
             _nameInputField.ActivateInputField();
@@ -56,12 +64,12 @@ public class PlayerNameUI : MonoBehaviour
         {
             _nameInputPanel.SetActive(true);
         }
+    }
 
-        // Disable connection manager until name is entered
-        if (_connectionManager != null)
-        {
-            _connectionManager.enabled = false;
-        }
+    private void OnSubmit(string value)
+    {
+        // Allow Enter key to submit
+        OnStartButtonClicked();
     }
 
     private void OnNameChanged(string newName)
@@ -120,6 +128,7 @@ public class PlayerNameUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        // Clean up listeners to prevent memory leaks
         if (_startButton != null)
         {
             _startButton.onClick.RemoveListener(OnStartButtonClicked);
@@ -128,6 +137,7 @@ public class PlayerNameUI : MonoBehaviour
         if (_nameInputField != null)
         {
             _nameInputField.onValueChanged.RemoveListener(OnNameChanged);
+            _nameInputField.onSubmit.RemoveListener(OnSubmit);
         }
     }
 }

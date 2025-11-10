@@ -40,10 +40,13 @@ public class PlayerController : NetworkBehaviour
     // Cached Components
     private MeshRenderer _renderer;
     private CharacterController _controller;
+    private Transform _nameCanvas; // Cache canvas transform
+    private Camera _mainCamera; // Cache main camera reference
 
     // Constants
     private const float MOVEMENT_THRESHOLD = 0.01f; // sqrMagnitude için optimize
     private const float GROUND_STICK_FORCE = -2f;
+    private const float MIN_CAMERA_DISTANCE_SQR = 0.01f; // For billboard rotation check
 
     // Ground check state
     private bool _isGrounded;
@@ -57,64 +60,63 @@ public class PlayerController : NetworkBehaviour
         _controller = GetComponent<CharacterController>();
     }
 
+    // Static array to avoid allocation every frame
+    private static readonly Vector3[] _groundCheckOffsets = new Vector3[]
+    {
+        new Vector3(0.8f, 0, 0),    // Right (using normalized radius)
+        new Vector3(-0.8f, 0, 0),   // Left
+        new Vector3(0, 0, 0.8f),    // Forward
+        new Vector3(0, 0, -0.8f)    // Back
+    };
+
     private bool CheckGrounded()
     {
-        bool grounded = false;
-
-        // Method 1: CharacterController built-in check
+        // Early return if CharacterController says grounded
         if (_controller.isGrounded)
         {
-            grounded = true;
+            return true;
         }
 
-        // Method 2: SphereCast from center
+        // Method 2: SphereCast from center (most reliable for slopes)
         Vector3 center = transform.position + _controller.center;
         float radius = _controller.radius * 0.9f;
 
         if (Physics.SphereCast(center, radius, Vector3.down, out RaycastHit hit, _groundCheckDistance, _groundLayer))
         {
-            grounded = true;
+            return true;
         }
 
-        // Method 3: Multiple raycasts from bottom (most reliable)
+        // Method 3: Multiple raycasts from bottom (for edges)
         Vector3 bottom = transform.position + Vector3.up * 0.1f;
-        float checkRadius = _controller.radius * 0.8f;
+        float checkRadius = _controller.radius;
 
         // Center raycast
         if (Physics.Raycast(bottom, Vector3.down, _groundCheckDistance, _groundLayer))
         {
-            grounded = true;
+            return true;
         }
 
-        // 4 corner raycasts
-        Vector3[] offsets = new Vector3[]
+        // 4 corner raycasts (using static array to avoid allocation)
+        for (int i = 0; i < _groundCheckOffsets.Length; i++)
         {
-            new Vector3(checkRadius, 0, 0),
-            new Vector3(-checkRadius, 0, 0),
-            new Vector3(0, 0, checkRadius),
-            new Vector3(0, 0, -checkRadius)
-        };
-
-        foreach (var offset in offsets)
-        {
+            Vector3 offset = _groundCheckOffsets[i] * checkRadius;
             if (Physics.Raycast(bottom + offset, Vector3.down, _groundCheckDistance, _groundLayer))
             {
-                grounded = true;
-                break;
+                return true;
             }
+
+#if UNITY_EDITOR
+            // Visual debug - draw raycasts
+            Debug.DrawRay(bottom + offset, Vector3.down * _groundCheckDistance, Color.red);
+#endif
         }
 
 #if UNITY_EDITOR
-        // Visual debug - draw raycasts
-        Color debugColor = grounded ? Color.green : Color.red;
-        Debug.DrawRay(bottom, Vector3.down * _groundCheckDistance, debugColor);
-        foreach (var offset in offsets)
-        {
-            Debug.DrawRay(bottom + offset, Vector3.down * _groundCheckDistance, debugColor);
-        }
+        // Visual debug - center raycast
+        Debug.DrawRay(bottom, Vector3.down * _groundCheckDistance, Color.red);
 #endif
 
-        return grounded;
+        return false;
     }
 
     public override void Spawned()
@@ -202,6 +204,9 @@ public class PlayerController : NetworkBehaviour
     private void SetupNameText()
     {
         if (_nameText == null) return;
+
+        // Cache canvas transform for performance
+        _nameCanvas = _nameText.transform.parent;
 
         // Update name text
         _nameText.text = string.IsNullOrEmpty(PlayerName) ? "Player" : PlayerName;
@@ -329,33 +334,34 @@ public class PlayerController : NetworkBehaviour
         }
 
         // Update name text to face the LOCAL camera (billboard effect)
-        if (_nameText != null)
+        if (_nameCanvas != null)
         {
-            // Update name text (show "Player" if name is empty)
-            string displayName = string.IsNullOrEmpty(PlayerName) ? "Player" : PlayerName;
-            if (_nameText.text != displayName)
+            // Cache Camera.main if not already cached or if it changed
+            if (_mainCamera == null || !_mainCamera.enabled)
             {
-                _nameText.text = displayName;
+                _mainCamera = Camera.main;
             }
 
-            // Get the canvas
-            Transform nameCanvas = _nameText.transform.parent;
-            if (nameCanvas != null)
+            if (_mainCamera != null)
             {
-                // Always use Camera.main (the active camera on THIS client)
-                // Each client renders with their own camera, so this works for everyone
-                Camera localCamera = Camera.main;
-
-                if (localCamera != null)
+                // Update name text only if changed (avoid string allocation)
+                if (_nameText != null)
                 {
-                    // Billboard: Always face the local camera
-                    Vector3 directionToCamera = localCamera.transform.position - nameCanvas.position;
-                    directionToCamera.y = 0; // Keep text upright
-
-                    if (directionToCamera.sqrMagnitude > 0.01f)
+                    string displayName = string.IsNullOrEmpty(PlayerName) ? "Player" : PlayerName;
+                    if (_nameText.text != displayName)
                     {
-                        nameCanvas.rotation = Quaternion.LookRotation(-directionToCamera);
+                        _nameText.text = displayName;
                     }
+                }
+
+                // Billboard: Always face the local camera
+                Vector3 directionToCamera = _mainCamera.transform.position - _nameCanvas.position;
+                directionToCamera.y = 0; // Keep text upright
+
+                // Use sqrMagnitude to avoid sqrt calculation
+                if (directionToCamera.sqrMagnitude > MIN_CAMERA_DISTANCE_SQR)
+                {
+                    _nameCanvas.rotation = Quaternion.LookRotation(-directionToCamera);
                 }
             }
         }
