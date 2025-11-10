@@ -113,6 +113,9 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 
             // Pickup input (E key)
             data.isPickingUp = keyboard.eKey.isPressed;
+
+            // Drop cube input (F key)
+            data.isDroppingCube = keyboard.fKey.isPressed;
         }
 
         input.Set(data);
@@ -142,5 +145,6 @@ public struct NetworkInputData : INetworkInput
     public NetworkBool isSprinting;
     public NetworkBool isJumping;
     public NetworkBool isPickingUp; // E key for pickup
+    public NetworkBool isDroppingCube; // F key for dropping cube
 }
 

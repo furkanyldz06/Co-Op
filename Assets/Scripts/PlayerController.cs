@@ -339,16 +339,16 @@ public class PlayerController : NetworkBehaviour
 
     private void HandlePickup(NetworkInputData data)
     {
-        if (!data.isPickingUp) return;
-
-        if (IsCarrying)
+        // F key - Drop cube
+        if (data.isDroppingCube && IsCarrying)
         {
-            // Drop the cube
             DropCube();
+            return;
         }
-        else
+
+        // E key - Pickup cube
+        if (data.isPickingUp && !IsCarrying)
         {
-            // Try to pick up a cube
             TryPickupCube();
         }
     }
@@ -594,6 +594,24 @@ public class PlayerController : NetworkBehaviour
         if (CarriedCubeId == default) return;
         if (!Runner.TryFindBehaviour(CarriedCubeId, out PickupableCube cube)) return;
 
+        // Restore rigidbody and collider to normal state FIRST
+        Rigidbody rb = cube.GetComponent<Rigidbody>();
+        Collider col = cube.GetComponent<Collider>();
+
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.useGravity = true;
+        }
+
+        if (col != null)
+        {
+            col.isTrigger = false;
+        }
+
+        // Unparent the cube
+        cube.transform.SetParent(null);
+
         // Update networked state (server-side)
         IsCarrying = false;
         CarriedCubeId = default;
@@ -602,22 +620,25 @@ public class PlayerController : NetworkBehaviour
         cube.IsPickedUp = false;
         cube.PickedUpBy = PlayerRef.None;
 
-        // Restore rigidbody and collider to normal state
-        Rigidbody rb = cube.GetComponent<Rigidbody>();
-        Collider col = cube.GetComponent<Collider>();
-
-        if (rb != null)
-        {
-            rb.isKinematic = false;
-        }
-
-        if (col != null)
-        {
-            col.isTrigger = false;
-        }
+        // Notify all clients to reset carry weight
+        RPC_OnDropConfirmed();
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        Debug.Log($"[PlayerController] Server: Dropped cube");
+        Debug.Log($"[RPC_RequestDrop] Server: Dropped cube");
+#endif
+    }
+
+    /// <summary>
+    /// RPC to confirm drop on all clients (called by server, executed on all clients)
+    /// </summary>
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_OnDropConfirmed(RpcInfo info = default)
+    {
+        // Reset carry weight to transition back to 0
+        _currentCarryWeight = 1f; // Start from 1 and let it transition to 0
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[RPC_OnDropConfirmed] Client: Drop confirmed, carry weight will transition to 0");
 #endif
     }
 
