@@ -1,5 +1,6 @@
 using Fusion;
 using UnityEngine;
+using TMPro;
 
 public class PlayerController : NetworkBehaviour
 {
@@ -24,12 +25,17 @@ public class PlayerController : NetworkBehaviour
     [Header("Camera")]
     [SerializeField] private GameObject _camera;
 
+    [Header("Player Name")]
+    [SerializeField] private TMP_Text _nameText;
+    [SerializeField] private float _nameYOffset = 2.5f;
+
     // Networked Properties
     [Networked] public NetworkBool IsWalking { get; set; }
     [Networked] public NetworkBool IsRunning { get; set; }
     [Networked] public NetworkBool IsJumping { get; set; }
     [Networked] private Vector3 NetworkedVelocity { get; set; }
     [Networked] private int JumpCounter { get; set; } // Counter to trigger animation on all clients
+    [Networked, Capacity(16)] public string PlayerName { get; set; }
 
     // Cached Components
     private MeshRenderer _renderer;
@@ -124,6 +130,13 @@ public class PlayerController : NetworkBehaviour
         if (Object.HasInputAuthority)
         {
             SetupLocalCamera();
+
+            // Set player name from UI (only input authority sets it)
+            if (Object.HasStateAuthority)
+            {
+                PlayerName = PlayerNameUI.PlayerName;
+                Debug.Log($"[PlayerController] Player name set to: {PlayerName}");
+            }
         }
         else if (_camera != null)
         {
@@ -132,6 +145,9 @@ public class PlayerController : NetworkBehaviour
 
         // Setup player color based on spawn position
         SetupPlayerColor();
+
+        // Setup name text
+        SetupNameText();
     }
 
     private void SetupLocalCamera()
@@ -165,6 +181,14 @@ public class PlayerController : NetworkBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"Player spawned at {transform.position} - Color: {(isFirstPlayer ? "GREEN" : "RED")}");
 #endif
+    }
+
+    private void SetupNameText()
+    {
+        if (_nameText == null) return;
+
+        // Update name text
+        _nameText.text = string.IsNullOrEmpty(PlayerName) ? "Player" : PlayerName;
     }
 
     public override void FixedUpdateNetwork()
@@ -287,6 +311,54 @@ public class PlayerController : NetworkBehaviour
 #endif
             }
         }
+
+        // Update name text to face the active camera (not Main Camera)
+        if (_nameText != null)
+        {
+            // Update name if it changed
+            if (_nameText.text != PlayerName && !string.IsNullOrEmpty(PlayerName))
+            {
+                _nameText.text = PlayerName;
+            }
+
+            // Get the canvas
+            Transform nameCanvas = _nameText.transform.parent;
+            if (nameCanvas != null)
+            {
+                // Find the active camera for this player
+                Camera activeCamera = null;
+
+                if (Object.HasInputAuthority && _camera != null)
+                {
+                    // Local player: use player's own camera
+                    activeCamera = _camera.GetComponentInChildren<Camera>();
+                }
+                else
+                {
+                    // Remote player: find the active camera in scene
+                    Camera[] cameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
+                    foreach (var cam in cameras)
+                    {
+                        if (cam.enabled && cam.gameObject.activeInHierarchy)
+                        {
+                            activeCamera = cam;
+                            break;
+                        }
+                    }
+                }
+
+                // Make name canvas face the active camera
+                if (activeCamera != null)
+                {
+                    Vector3 directionToCamera = activeCamera.transform.position - nameCanvas.position;
+                    directionToCamera.y = 0; // Keep text upright
+
+                    if (directionToCamera.sqrMagnitude > 0.01f)
+                    {
+                        nameCanvas.rotation = Quaternion.LookRotation(-directionToCamera);
+                    }
+                }
+            }
+        }
     }
 }
-
