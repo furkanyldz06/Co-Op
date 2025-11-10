@@ -2223,6 +2223,10 @@ MonoBehaviour:
   _camera: {fileID: 147775395530365571}
   _nameText: {fileID: 4414598527495648292}
   _nameYOffset: 2.5
+  _leftHandBone: {fileID: 3441874409292651461}
+  _cubeHoldOffset: {x: 0.05, y: 0.05, z: 0.263}
+  _cubeHoldRotation: {x: 0, y: 0, z: 0}
+  _pickupRange: 2
   _IsWalking:
     _value: 0
   _IsRunning:
@@ -2230,6 +2234,12 @@ MonoBehaviour:
   _IsJumping:
     _value: 0
   _PlayerName: 
+  _IsCarrying:
+    _value: 0
+  _CarriedCubeId:
+    Object:
+      Raw: 0
+    Behaviour: 0
 --- !u!114 &5187379185714689782
 MonoBehaviour:
   m_ObjectHideFlags: 0

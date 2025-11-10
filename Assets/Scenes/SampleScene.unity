@@ -1083,6 +1083,75 @@ MonoBehaviour:
   _playerPrefab:
     RawGuidValue: 4a608cabfd414438d96852192d59736b
   _gameMode: 6
+--- !u!1 &1601050107
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1601050108}
+  - component: {fileID: 1601050110}
+  - component: {fileID: 1601050109}
+  m_Layer: 0
+  m_Name: CubeSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1601050108
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601050107}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 22.373676, y: 1.7763134, z: -7.581904}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1601050109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601050107}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b391773200ef4746a94f0cd5942607d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _spawnPosition: {x: 5, y: 1, z: 0}
+  _cubeSize: {x: 0.5, y: 0.5, z: 0.5}
+  _cubeColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  _cubePrefab:
+    RawGuidValue: a0d24aaae2fc14af9a9458cb47f3a38d
+--- !u!114 &1601050110
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601050107}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  SortKey: 1017344217
+  ObjectInterest: 1
+  Flags: 262145
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: 1601050109}
+  ForceRemoteRenderTimeframe: 0
 --- !u!1 &1603619188
 GameObject:
   m_ObjectHideFlags: 0
@@ -1841,3 +1910,4 @@ SceneRoots:
   - {fileID: 1272165538}
   - {fileID: 1885204069}
   - {fileID: 1297747484}
+  - {fileID: 1601050108}

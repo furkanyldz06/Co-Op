@@ -29,6 +29,12 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private TMP_Text _nameText;
     [SerializeField] private float _nameYOffset = 2.5f;
 
+    [Header("Pickup System")]
+    [SerializeField] private Transform _leftHandBone; // mixamorig:LeftHand
+    [SerializeField] private Vector3 _cubeHoldOffset = new Vector3(0.05f, 0.05f, 0.1f); // Local position offset
+    [SerializeField] private Vector3 _cubeHoldRotation = new Vector3(0, 0, 0); // Local rotation
+    [SerializeField] private float _pickupRange = 2f;
+
     // Networked Properties
     [Networked] public NetworkBool IsWalking { get; set; }
     [Networked] public NetworkBool IsRunning { get; set; }
@@ -36,12 +42,15 @@ public class PlayerController : NetworkBehaviour
     [Networked] private Vector3 NetworkedVelocity { get; set; }
     [Networked] private int JumpCounter { get; set; } // Counter to trigger animation on all clients
     [Networked, Capacity(16)] public string PlayerName { get; set; }
+    [Networked] public NetworkBool IsCarrying { get; set; } // Is player carrying a cube?
+    [Networked] public NetworkBehaviourId CarriedCubeId { get; set; } // ID of the carried cube
 
     // Cached Components
     private MeshRenderer _renderer;
     private CharacterController _controller;
     private Transform _nameCanvas; // Cache canvas transform
     private Camera _mainCamera; // Cache main camera reference
+    private PickupableCube _carriedCube; // Reference to the carried cube
 
     // Constants
     private const float MOVEMENT_THRESHOLD = 0.01f; // sqrMagnitude için optimize
@@ -310,7 +319,151 @@ public class PlayerController : NetworkBehaviour
             NetworkedVelocity = velocity;
             IsWalking = isMoving;
             IsRunning = isMoving && data.isSprinting;
+
+            // Pickup logic
+            HandlePickup(data);
         }
+    }
+
+    private void HandlePickup(NetworkInputData data)
+    {
+        if (!data.isPickingUp) return;
+
+        if (IsCarrying)
+        {
+            // Drop the cube
+            DropCube();
+        }
+        else
+        {
+            // Try to pick up a cube
+            TryPickupCube();
+        }
+    }
+
+    private void TryPickupCube()
+    {
+        // Find all pickupable cubes in range
+        Collider[] colliders = Physics.OverlapSphere(transform.position, _pickupRange);
+
+        PickupableCube closestCube = null;
+        float closestDistance = float.MaxValue;
+
+        foreach (var collider in colliders)
+        {
+            var cube = collider.GetComponent<PickupableCube>();
+            if (cube != null && !cube.IsPickedUp)
+            {
+                float distance = Vector3.Distance(transform.position, cube.transform.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestCube = cube;
+                }
+            }
+        }
+
+        if (closestCube != null)
+        {
+            // Pick up the cube
+            PickupCube(closestCube);
+        }
+    }
+
+    private void PickupCube(PickupableCube cube)
+    {
+        if (cube == null || _leftHandBone == null) return;
+
+        // Call RPC to request pickup from server
+        RPC_RequestPickup(cube.Id);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[PlayerController] Requesting pickup of cube: {cube.name}");
+#endif
+    }
+
+    private void DropCube()
+    {
+        // Call RPC to request drop from server
+        RPC_RequestDrop();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[PlayerController] Requesting drop");
+#endif
+    }
+
+    /// <summary>
+    /// RPC to request picking up a cube (called by client, executed on server)
+    /// </summary>
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_RequestPickup(NetworkBehaviourId cubeId, RpcInfo info = default)
+    {
+        // Find the cube
+        if (!Runner.TryFindBehaviour(cubeId, out PickupableCube cube)) return;
+        if (cube.IsPickedUp) return; // Already picked up
+
+        // FIRST: Make rigidbody kinematic and collider trigger BEFORE updating state
+        Rigidbody rb = cube.GetComponent<Rigidbody>();
+        Collider col = cube.GetComponent<Collider>();
+
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+        }
+
+        if (col != null)
+        {
+            col.isTrigger = true;
+        }
+
+        // THEN: Update networked state (server-side)
+        IsCarrying = true;
+        CarriedCubeId = cubeId;
+
+        // Update cube state (server-side)
+        cube.IsPickedUp = true;
+        cube.PickedUpBy = Object.InputAuthority;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[PlayerController] Server: Picked up cube {cubeId}");
+#endif
+    }
+
+    /// <summary>
+    /// RPC to request dropping the carried cube (called by client, executed on server)
+    /// </summary>
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_RequestDrop(RpcInfo info = default)
+    {
+        // Find the carried cube
+        if (CarriedCubeId == default) return;
+        if (!Runner.TryFindBehaviour(CarriedCubeId, out PickupableCube cube)) return;
+
+        // Update networked state (server-side)
+        IsCarrying = false;
+        CarriedCubeId = default;
+
+        // Update cube state (server-side)
+        cube.IsPickedUp = false;
+        cube.PickedUpBy = PlayerRef.None;
+
+        // Restore rigidbody and collider to normal state
+        Rigidbody rb = cube.GetComponent<Rigidbody>();
+        Collider col = cube.GetComponent<Collider>();
+
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+        }
+
+        if (col != null)
+        {
+            col.isTrigger = false;
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[PlayerController] Server: Dropped cube");
+#endif
     }
 
     public override void Render()
@@ -331,7 +484,18 @@ public class PlayerController : NetworkBehaviour
                 Debug.Log($"[Render] Jump animation triggered! Counter: {JumpCounter}");
 #endif
             }
+
+            // Update Carry layer weight based on IsCarrying state
+            int carryLayerIndex = _animator.GetLayerIndex("Carry");
+            if (carryLayerIndex >= 0)
+            {
+                float targetWeight = IsCarrying ? 1f : 0f;
+                _animator.SetLayerWeight(carryLayerIndex, targetWeight);
+            }
         }
+
+        // Update carried cube position (runs on all clients)
+        UpdateCarriedCube();
 
         // Update name text to face the LOCAL camera (billboard effect)
         if (_nameCanvas != null)
@@ -364,6 +528,32 @@ public class PlayerController : NetworkBehaviour
                     _nameCanvas.rotation = Quaternion.LookRotation(-directionToCamera);
                 }
             }
+        }
+    }
+
+    private void UpdateCarriedCube()
+    {
+        if (!IsCarrying || _leftHandBone == null)
+        {
+            _carriedCube = null; // Clear reference when not carrying
+            return;
+        }
+
+        // Find the carried cube if we don't have a reference
+        if (_carriedCube == null && CarriedCubeId != default)
+        {
+            if (Runner.TryFindBehaviour(CarriedCubeId, out PickupableCube cube))
+            {
+                _carriedCube = cube;
+            }
+        }
+
+        // Update cube position to follow left hand
+        if (_carriedCube != null)
+        {
+            _carriedCube.transform.SetParent(_leftHandBone);
+            _carriedCube.transform.localPosition = _cubeHoldOffset;
+            _carriedCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
         }
     }
 

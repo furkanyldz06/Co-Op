@@ -110,6 +110,9 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 
             // Jump input - use isPressed instead of wasPressedThisFrame for better reliability
             data.isJumping = keyboard.spaceKey.isPressed;
+
+            // Pickup input (E key)
+            data.isPickingUp = keyboard.eKey.isPressed;
         }
 
         input.Set(data);
@@ -138,5 +141,6 @@ public struct NetworkInputData : INetworkInput
     public Vector3 direction;
     public NetworkBool isSprinting;
     public NetworkBool isJumping;
+    public NetworkBool isPickingUp; // E key for pickup
 }
 
