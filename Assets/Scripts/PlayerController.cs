@@ -166,6 +166,13 @@ public class PlayerController : NetworkBehaviour
         _camera.transform.parent = null;
         _camera.SetActive(true);
 
+        // Set MainCamera tag so Camera.main finds this camera
+        Camera cam = _camera.GetComponentInChildren<Camera>();
+        if (cam != null)
+        {
+            cam.tag = "MainCamera";
+        }
+
         var cameraManager = _camera.GetComponent<GameOrganization.CameraManager>();
         if (cameraManager != null)
         {
@@ -321,7 +328,7 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        // Update name text to face the active camera (not Main Camera)
+        // Update name text to face the LOCAL camera (billboard effect)
         if (_nameText != null)
         {
             // Update name text (show "Player" if name is empty)
@@ -335,32 +342,14 @@ public class PlayerController : NetworkBehaviour
             Transform nameCanvas = _nameText.transform.parent;
             if (nameCanvas != null)
             {
-                // Find the active camera for this player
-                Camera activeCamera = null;
+                // Always use Camera.main (the active camera on THIS client)
+                // Each client renders with their own camera, so this works for everyone
+                Camera localCamera = Camera.main;
 
-                if (Object.HasInputAuthority && _camera != null)
+                if (localCamera != null)
                 {
-                    // Local player: use player's own camera
-                    activeCamera = _camera.GetComponentInChildren<Camera>();
-                }
-                else
-                {
-                    // Remote player: find the active camera in scene
-                    Camera[] cameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
-                    foreach (var cam in cameras)
-                    {
-                        if (cam.enabled && cam.gameObject.activeInHierarchy)
-                        {
-                            activeCamera = cam;
-                            break;
-                        }
-                    }
-                }
-
-                // Make name canvas face the active camera
-                if (activeCamera != null)
-                {
-                    Vector3 directionToCamera = activeCamera.transform.position - nameCanvas.position;
+                    // Billboard: Always face the local camera
+                    Vector3 directionToCamera = localCamera.transform.position - nameCanvas.position;
                     directionToCamera.y = 0; // Keep text upright
 
                     if (directionToCamera.sqrMagnitude > 0.01f)
