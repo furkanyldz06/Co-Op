@@ -51,6 +51,11 @@ public class PlayerController : NetworkBehaviour
     private Transform _nameCanvas; // Cache canvas transform
     private Camera _mainCamera; // Cache main camera reference
     private PickupableCube _carriedCube; // Reference to the carried cube
+    private Rigidbody _carriedCubeRb; // Cached rigidbody
+    private Collider _carriedCubeCol; // Cached collider
+
+    // Pickup state tracking
+    private bool _isPickupInProgress = false; // Track if pickup is in progress
 
     // Constants
     private const float MOVEMENT_THRESHOLD = 0.01f; // sqrMagnitude için optimize
@@ -327,6 +332,9 @@ public class PlayerController : NetworkBehaviour
             // Pickup logic
             HandlePickup(data);
         }
+
+        // CRITICAL: Enforce pickup state every network tick
+        EnforcePickupState();
     }
 
     private void HandlePickup(NetworkInputData data)
@@ -347,6 +355,8 @@ public class PlayerController : NetworkBehaviour
 
     private void TryPickupCube()
     {
+        if (_isPickupInProgress) return; // Already picking up
+
         // Find all pickupable cubes in range
         Collider[] colliders = Physics.OverlapSphere(transform.position, _pickupRange);
 
@@ -369,68 +379,89 @@ public class PlayerController : NetworkBehaviour
 
         if (closestCube != null)
         {
-            // ========================================
-            // GUARANTEED PICKUP - ALL STEPS EXECUTED IMMEDIATELY
-            // ========================================
+            Debug.Log($"[TryPickupCube] Found cube at distance {closestDistance:F2}, starting pickup");
 
-            Debug.Log($"[TryPickupCube] STARTING GUARANTEED PICKUP - Distance: {closestDistance:F2}");
+            // Cache the cube and components
+            _carriedCube = closestCube;
+            _carriedCubeRb = closestCube.GetComponent<Rigidbody>();
+            _carriedCubeCol = closestCube.GetComponent<Collider>();
 
-            // STEP 1: Get components
-            Rigidbody rb = closestCube.GetComponent<Rigidbody>();
-            Collider col = closestCube.GetComponent<Collider>();
+            // Set flag to start enforcing pickup in FixedUpdateNetwork
+            _isPickupInProgress = true;
 
-            Debug.Log($"[TryPickupCube] STEP 1: Components found - RB: {rb != null}, Col: {col != null}");
+            // Reset carry weight to start transition
+            _currentCarryWeight = 0f;
 
-            // STEP 2: Freeze physics IMMEDIATELY
-            if (rb != null)
-            {
-                rb.isKinematic = true;
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-                rb.useGravity = false;
-                Debug.Log($"[TryPickupCube] STEP 2: Physics FROZEN - Kinematic: {rb.isKinematic}");
-            }
-
-            if (col != null)
-            {
-                col.isTrigger = true;
-                Debug.Log($"[TryPickupCube] STEP 2: Collider set to trigger: {col.isTrigger}");
-            }
-
-            // STEP 3: Parent to hand IMMEDIATELY
-            if (_leftHandBone != null)
-            {
-                closestCube.transform.SetParent(_leftHandBone);
-                closestCube.transform.localPosition = _cubeHoldOffset;
-                closestCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
-                Debug.Log($"[TryPickupCube] STEP 3: Parented to hand - Parent: {closestCube.transform.parent.name}");
-            }
-
-            // STEP 4: Trigger animation IMMEDIATELY
+            // Trigger animation
             if (_animator != null)
             {
                 _animator.SetTrigger("Take");
-                Debug.Log($"[TryPickupCube] STEP 4: Take animation triggered");
             }
 
-            // STEP 5: Set carry layer weight to start transitioning
-            int carryLayerIndex = _animator.GetLayerIndex("Carry");
-            if (carryLayerIndex >= 0)
-            {
-                // Start from 0 and let it transition to 1
-                _currentCarryWeight = 0f;
-                Debug.Log($"[TryPickupCube] STEP 5: Carry weight reset to 0, will transition to 1");
-            }
-
-            // STEP 6: Send RPC to server
+            // Send RPC to server
             RPC_RequestPickup(closestCube.Id);
-            Debug.Log($"[TryPickupCube] STEP 6: RPC sent to server");
 
-            Debug.Log($"[TryPickupCube] ✅ ALL STEPS COMPLETED SUCCESSFULLY!");
+            Debug.Log($"[TryPickupCube] Pickup initiated, will be enforced every network tick");
         }
-        else
+    }
+
+    /// <summary>
+    /// Enforces pickup state every network tick - GUARANTEES cube stays in hand
+    /// </summary>
+    private void EnforcePickupState()
+    {
+        // If pickup is in progress, enforce it every tick
+        if (_isPickupInProgress && _carriedCube != null)
         {
-            Debug.Log($"[TryPickupCube] ❌ No cube found in range");
+            // STEP 1: Force rigidbody kinematic
+            if (_carriedCubeRb != null)
+            {
+                if (!_carriedCubeRb.isKinematic)
+                {
+                    _carriedCubeRb.isKinematic = true;
+                    Debug.LogWarning($"[EnforcePickupState] Fixed rigidbody kinematic!");
+                }
+
+                _carriedCubeRb.linearVelocity = Vector3.zero;
+                _carriedCubeRb.angularVelocity = Vector3.zero;
+                _carriedCubeRb.useGravity = false;
+            }
+
+            // STEP 2: Force collider trigger
+            if (_carriedCubeCol != null && !_carriedCubeCol.isTrigger)
+            {
+                _carriedCubeCol.isTrigger = true;
+                Debug.LogWarning($"[EnforcePickupState] Fixed collider trigger!");
+            }
+
+            // STEP 3: Force parent
+            if (_leftHandBone != null && _carriedCube.transform.parent != _leftHandBone)
+            {
+                _carriedCube.transform.SetParent(_leftHandBone);
+                Debug.LogWarning($"[EnforcePickupState] Fixed parent!");
+            }
+
+            // STEP 4: Force position and rotation
+            _carriedCube.transform.localPosition = _cubeHoldOffset;
+            _carriedCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+
+            // Once server confirms, clear the flag
+            if (IsCarrying)
+            {
+                _isPickupInProgress = false;
+                Debug.Log($"[EnforcePickupState] Pickup confirmed by server, enforcement complete");
+            }
+        }
+
+        // If carrying (server confirmed), keep enforcing
+        if (IsCarrying && _carriedCube != null)
+        {
+            // Keep enforcing position
+            if (_leftHandBone != null)
+            {
+                _carriedCube.transform.localPosition = _cubeHoldOffset;
+                _carriedCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+            }
         }
     }
 
@@ -438,11 +469,37 @@ public class PlayerController : NetworkBehaviour
 
     private void DropCube()
     {
+        // Clear pickup flag
+        _isPickupInProgress = false;
+
+        // Restore physics
+        if (_carriedCubeRb != null)
+        {
+            _carriedCubeRb.isKinematic = false;
+            _carriedCubeRb.useGravity = true;
+        }
+
+        if (_carriedCubeCol != null)
+        {
+            _carriedCubeCol.isTrigger = false;
+        }
+
+        // Unparent
+        if (_carriedCube != null)
+        {
+            _carriedCube.transform.SetParent(null);
+        }
+
+        // Clear cache
+        _carriedCube = null;
+        _carriedCubeRb = null;
+        _carriedCubeCol = null;
+
         // Call RPC to request drop from server
         RPC_RequestDrop();
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        Debug.Log($"[PlayerController] Requesting drop");
+        Debug.Log($"[DropCube] Dropped cube and cleared cache");
 #endif
     }
 
