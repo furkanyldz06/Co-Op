@@ -401,7 +401,13 @@ public class PlayerController : NetworkBehaviour
             // Send RPC to server
             RPC_RequestPickup(closestCube.Id);
 
-            Debug.Log($"[TryPickupCube] Pickup initiated, will be enforced every network tick");
+            // DEBUG: Check cube components
+            MeshRenderer cubeMesh = closestCube.GetComponent<MeshRenderer>();
+            Debug.Log($"[TryPickupCube] ✅ Pickup initiated!");
+            Debug.Log($"[TryPickupCube] Cube position: {closestCube.transform.position}");
+            Debug.Log($"[TryPickupCube] MeshRenderer: {(cubeMesh != null ? "EXISTS" : "MISSING")} | Enabled: {(cubeMesh != null ? cubeMesh.enabled.ToString() : "N/A")}");
+            Debug.Log($"[TryPickupCube] Rigidbody: {(_carriedCubeRb != null ? "EXISTS" : "MISSING")}");
+            Debug.Log($"[TryPickupCube] Collider: {(_carriedCubeCol != null ? "EXISTS" : "MISSING")}");
         }
     }
 
@@ -435,16 +441,8 @@ public class PlayerController : NetworkBehaviour
                 Debug.LogWarning($"[EnforcePickupState] Fixed collider trigger!");
             }
 
-            // STEP 3: Force parent
-            if (_leftHandBone != null && _carriedCube.transform.parent != _leftHandBone)
-            {
-                _carriedCube.transform.SetParent(_leftHandBone);
-                Debug.LogWarning($"[EnforcePickupState] Fixed parent!");
-            }
-
-            // STEP 4: Force position and rotation
-            _carriedCube.transform.localPosition = _cubeHoldOffset;
-            _carriedCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+            // STEP 3: Position is handled by UpdateCarriedCube() using TransformPoint
+            // No need to parent or set position here
 
             // Once server confirms, clear the flag
             if (IsCarrying)
@@ -454,15 +452,13 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        // If carrying (server confirmed), keep enforcing
-        if (IsCarrying && _carriedCube != null)
+        // If carrying (server confirmed), keep enforcing position
+        // ONLY on the player who has input authority (the one carrying)
+        if (IsCarrying && _carriedCube != null && _leftHandBone != null && Object.HasInputAuthority)
         {
-            // Keep enforcing position
-            if (_leftHandBone != null)
-            {
-                _carriedCube.transform.localPosition = _cubeHoldOffset;
-                _carriedCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
-            }
+            // Update position in world space (works for networked objects)
+            _carriedCube.transform.position = _leftHandBone.TransformPoint(_cubeHoldOffset);
+            _carriedCube.transform.rotation = _leftHandBone.rotation * Quaternion.Euler(_cubeHoldRotation);
         }
     }
 
@@ -568,6 +564,7 @@ public class PlayerController : NetworkBehaviour
         {
             Rigidbody rb = cube.GetComponent<Rigidbody>();
             Collider col = cube.GetComponent<Collider>();
+            MeshRenderer meshRenderer = cube.GetComponent<MeshRenderer>();
 
             if (rb != null)
             {
@@ -580,6 +577,21 @@ public class PlayerController : NetworkBehaviour
             {
                 col.isTrigger = true;
                 col.enabled = false;
+            }
+
+            // CRITICAL: Make sure MeshRenderer is enabled
+            if (meshRenderer != null)
+            {
+                if (!meshRenderer.enabled)
+                {
+                    meshRenderer.enabled = true;
+                    Debug.LogError($"[RPC_OnPickupConfirmed] ❌ CLIENT: MeshRenderer was DISABLED! Re-enabled it.");
+                }
+                Debug.Log($"[RPC_OnPickupConfirmed] ✅ CLIENT: MeshRenderer enabled: {meshRenderer.enabled}, Cube pos: {cube.transform.position}");
+            }
+            else
+            {
+                Debug.LogError($"[RPC_OnPickupConfirmed] ❌ CLIENT: NO MeshRenderer on cube!");
             }
         }
 
@@ -717,59 +729,27 @@ public class PlayerController : NetworkBehaviour
 
     private void UpdateCarriedCube()
     {
-        if (!IsCarrying || _leftHandBone == null)
-        {
-            _carriedCube = null; // Clear reference when not carrying
-            return;
-        }
-
         // Find the carried cube if we don't have a reference
-        if (_carriedCube == null && CarriedCubeId != default)
+        if (IsCarrying && _carriedCube == null && CarriedCubeId != default)
         {
+            Debug.Log($"[UpdateCarriedCube] 🔍 Trying to find cube with ID: {CarriedCubeId}");
+
             if (Runner.TryFindBehaviour(CarriedCubeId, out PickupableCube cube))
             {
                 _carriedCube = cube;
+                _carriedCubeRb = cube.GetComponent<Rigidbody>();
+                _carriedCubeCol = cube.GetComponent<Collider>();
 
-                // Immediately setup the cube when found
-                Rigidbody rb = cube.GetComponent<Rigidbody>();
-                Collider col = cube.GetComponent<Collider>();
-
-                if (rb != null)
-                {
-                    rb.isKinematic = true;
-                    rb.linearVelocity = Vector3.zero;
-                    rb.angularVelocity = Vector3.zero;
-                }
-
-                if (col != null)
-                {
-                    col.isTrigger = true;
-                    col.enabled = false;
-                }
+                Debug.Log($"[UpdateCarriedCube] ✅ FOUND CUBE at position: {cube.transform.position}");
             }
         }
 
-        // Update cube position to follow left hand
-        if (_carriedCube != null)
+        // Clear reference if not carrying
+        if (!IsCarrying)
         {
-            // Make sure cube is parented to hand
-            if (_carriedCube.transform.parent != _leftHandBone)
-            {
-                _carriedCube.transform.SetParent(_leftHandBone);
-            }
-
-            // Force position and rotation every frame
-            _carriedCube.transform.localPosition = _cubeHoldOffset;
-            _carriedCube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
-
-            // Double-check rigidbody is kinematic
-            Rigidbody rb = _carriedCube.GetComponent<Rigidbody>();
-            if (rb != null && !rb.isKinematic)
-            {
-                rb.isKinematic = true;
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
+            _carriedCube = null;
+            _carriedCubeRb = null;
+            _carriedCubeCol = null;
         }
     }
 

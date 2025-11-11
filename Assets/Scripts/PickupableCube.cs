@@ -17,11 +17,13 @@ public class PickupableCube : NetworkBehaviour
     // Cached Components
     private Rigidbody _rigidbody;
     private Collider _collider;
+    private MeshRenderer _meshRenderer;
 
     private void Awake()
     {
         _rigidbody = GetComponent<Rigidbody>();
         _collider = GetComponent<Collider>();
+        _meshRenderer = GetComponent<MeshRenderer>();
     }
 
     public override void Spawned()
@@ -49,6 +51,27 @@ public class PickupableCube : NetworkBehaviour
     {
         // Physics is now handled by PlayerController for better synchronization
         // This prevents conflicts between server and client updates
+
+        // DEBUG: Make sure MeshRenderer is always enabled
+        if (_meshRenderer != null)
+        {
+            if (!_meshRenderer.enabled)
+            {
+                _meshRenderer.enabled = true;
+                Debug.LogError($"[PickupableCube] ❌ MeshRenderer was DISABLED! Re-enabled it.");
+            }
+
+            // Check if cube is visible
+            bool isVisible = _meshRenderer.isVisible;
+            if (IsPickedUp && !isVisible)
+            {
+                Debug.LogWarning($"[PickupableCube] ⚠️ Cube is picked up but NOT VISIBLE! Position: {transform.position}, Layer: {gameObject.layer}, Parent: {(transform.parent != null ? transform.parent.name : "NULL")}");
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PickupableCube] ❌ NO MeshRenderer component!");
+        }
     }
 
 #if UNITY_EDITOR
