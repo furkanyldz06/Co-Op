@@ -629,7 +629,7 @@ public class PlayerController : NetworkBehaviour
         {
             // Adjust drop position: ground point + half cube height (so bottom of cube touches ground)
             // Add safety offset to prevent clipping into ground
-            float safetyOffset = 0.02f;
+            float safetyOffset = -0.1f;
 
             // Use hit.normal to align cube with ground surface (works on slopes!)
             dropPosition = hit.point + hit.normal * (cubeHalfHeight + safetyOffset);
