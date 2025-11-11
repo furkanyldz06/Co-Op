@@ -65,6 +65,9 @@ public class PlayerController : NetworkBehaviour
     private float _jumpRequestTime = -999f;
     private int _lastJumpCounter = 0; // Track last jump counter for animation
 
+    // Cube highlight tracking
+    private PickupableCube _lastHighlightedCube = null;
+
     // Carry layer animation
     private float _currentCarryWeight = 0f; // Current carry layer weight
     private const float CARRY_TRANSITION_SPEED = 5f; // Speed of transition (higher = faster)
@@ -418,6 +421,10 @@ public class PlayerController : NetworkBehaviour
         if (closestCube != null)
         {
             Debug.Log($"[TryPickupCube] ✅ Found cube at distance {closestDistance:F2}, starting pickup");
+
+            // Remove highlight from cube (we're picking it up)
+            closestCube.SetHighlight(false);
+            _lastHighlightedCube = null;
 
             // Cache the cube and components
             _carriedCube = closestCube;
@@ -823,6 +830,12 @@ public class PlayerController : NetworkBehaviour
         // Update carried cube position (runs on all clients)
         UpdateCarriedCube();
 
+        // Update cube highlighting (only for local player)
+        if (Object.HasInputAuthority && !IsCarrying)
+        {
+            UpdateCubeHighlight();
+        }
+
         // Update name text to face the LOCAL camera (billboard effect)
         if (_nameCanvas != null)
         {
@@ -878,6 +891,48 @@ public class PlayerController : NetworkBehaviour
         {
             _carriedCube = null;
             _carriedCubeCol = null;
+        }
+    }
+
+    private void UpdateCubeHighlight()
+    {
+        // Find all cubes in pickup range
+        Collider[] colliders = Physics.OverlapSphere(transform.position, _pickupRange);
+
+        PickupableCube closestCube = null;
+        float closestDistance = float.MaxValue;
+
+        // Find the closest pickupable cube
+        foreach (var collider in colliders)
+        {
+            var cube = collider.GetComponent<PickupableCube>();
+            if (cube != null && !cube.IsPickedUp)
+            {
+                float distance = Vector3.Distance(transform.position, cube.transform.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestCube = cube;
+                }
+            }
+        }
+
+        // Update highlight state
+        if (closestCube != _lastHighlightedCube)
+        {
+            // Remove highlight from previous cube
+            if (_lastHighlightedCube != null)
+            {
+                _lastHighlightedCube.SetHighlight(false);
+            }
+
+            // Add highlight to new cube
+            if (closestCube != null)
+            {
+                closestCube.SetHighlight(true);
+            }
+
+            _lastHighlightedCube = closestCube;
         }
     }
 

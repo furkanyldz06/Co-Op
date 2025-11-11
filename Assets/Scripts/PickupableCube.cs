@@ -10,6 +10,10 @@ public class PickupableCube : NetworkBehaviour
     [SerializeField] private float _pickupRange = 2f;
     [SerializeField] private LayerMask _playerLayer = -1;
 
+    [Header("Highlight Settings")]
+    [SerializeField] private Color _highlightColor = Color.blue;
+    [SerializeField] private Color _originalColor = Color.white;
+
     // Networked Properties
     [Networked] public NetworkBool IsPickedUp { get; set; }
     [Networked] public PlayerRef PickedUpBy { get; set; }
@@ -17,11 +21,20 @@ public class PickupableCube : NetworkBehaviour
     // Cached Components
     private Collider _collider;
     private MeshRenderer _meshRenderer;
+    private Material _material;
+    private bool _isHighlighted = false;
 
     private void Awake()
     {
         _collider = GetComponent<Collider>();
         _meshRenderer = GetComponent<MeshRenderer>();
+
+        // Get material and store original color
+        if (_meshRenderer != null)
+        {
+            _material = _meshRenderer.material; // Creates instance automatically
+            _originalColor = _material.color;
+        }
     }
 
     public override void Spawned()
@@ -32,6 +45,20 @@ public class PickupableCube : NetworkBehaviour
             IsPickedUp = false;
             PickedUpBy = PlayerRef.None;
         }
+    }
+
+    /// <summary>
+    /// Highlight the cube (turn blue when player is in range)
+    /// </summary>
+    public void SetHighlight(bool highlight)
+    {
+        if (_material == null) return;
+
+        // Only change if state is different
+        if (_isHighlighted == highlight) return;
+
+        _isHighlighted = highlight;
+        _material.color = highlight ? _highlightColor : _originalColor;
     }
 
     /// <summary>
