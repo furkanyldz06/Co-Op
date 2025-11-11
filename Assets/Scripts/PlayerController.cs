@@ -592,6 +592,11 @@ public class PlayerController : NetworkBehaviour
         // Store cube ID before clearing
         NetworkBehaviourId droppedCubeId = CarriedCubeId;
 
+        // IMMEDIATELY clear carrying state (before any other processing)
+        // This ensures UI updates instantly on all clients
+        IsCarrying = false;
+        CarriedCubeId = default;
+
         // Store current world position and rotation BEFORE unparenting
         Vector3 dropPosition = _marker.position;
         // Vector3 dropPosition = cube.transform.position;
@@ -681,10 +686,6 @@ public class PlayerController : NetworkBehaviour
         }
 
         Debug.Log($"[RPC_RequestDrop] ✅ SERVER: Cube dropped at position {dropPosition}");
-
-        // Update networked state (server-side)
-        IsCarrying = false;
-        CarriedCubeId = default;
 
         // Update cube state (server-side)
         cube.IsPickedUp = false;

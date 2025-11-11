@@ -32,6 +32,11 @@ public class ObstacleHeightDetector : MonoBehaviour
     // Public property to get current obstacle height
     public float CurrentObstacleHeight => _currentObstacleHeight;
 
+    [SerializeField] PlayerController _playerController;
+
+    [SerializeField] GameObject _arrow;
+
+
     private void Update()
     {
         if (_player == null)
@@ -116,6 +121,14 @@ public class ObstacleHeightDetector : MonoBehaviour
 
         // Set local position - only Y changes, X and Z stay as you set them in Inspector
         _heightMarker.localPosition = new Vector3(currentLocalPos.x, newY, currentLocalPos.z);
+
+        // Update arrow visibility based on carrying state
+        if(_playerController != null && _arrow != null)
+        {
+            // Check both IsCarrying AND CarriedCubeId to ensure accurate state
+            bool isActuallyCarrying = _playerController.IsCarrying && _playerController.CarriedCubeId != default;
+            _arrow.SetActive(isActuallyCarrying);
+        }
     }
 
     private void OnValidate()
