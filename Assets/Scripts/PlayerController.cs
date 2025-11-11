@@ -595,20 +595,25 @@ public class PlayerController : NetworkBehaviour
         Vector3 dropPosition = cube.transform.position;
         Quaternion dropRotation = cube.transform.rotation;
 
-        // Unparent the cube
+        // Unparent the cube FIRST (while NetworkTransform is still disabled)
         cube.transform.SetParent(null);
 
         // Set the world position and rotation
         cube.transform.position = dropPosition;
         cube.transform.rotation = dropRotation;
 
-        // Re-enable NetworkTransform and teleport (it was disabled during pickup)
+        // Get NetworkTransform
         NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
+
+        // Re-enable NetworkTransform AFTER position is set
         if (cubeNetTransform != null)
         {
-            cubeNetTransform.Teleport(dropPosition, dropRotation);
             cubeNetTransform.enabled = true;
-            Debug.Log($"[RPC_RequestDrop] 🟢 SERVER: NetworkTransform RE-ENABLED and teleported to {dropPosition}");
+            Debug.Log($"[RPC_RequestDrop] 🟢 SERVER: NetworkTransform RE-ENABLED at position {dropPosition}");
+
+            // Immediately teleport to the current position to reset interpolation state
+            cubeNetTransform.Teleport(dropPosition, dropRotation);
+            Debug.Log($"[RPC_RequestDrop] � SERVER: NetworkTransform teleported to {dropPosition}");
         }
 
         Debug.Log($"[RPC_RequestDrop] ✅ SERVER: Cube dropped at position {dropPosition}");
@@ -636,35 +641,8 @@ public class PlayerController : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_OnDropConfirmed(NetworkBehaviourId cubeId, Vector3 dropPosition, Quaternion dropRotation, RpcInfo info = default)
     {
-        // Re-enable collider on all clients
-        if (Runner.TryFindBehaviour(cubeId, out PickupableCube cube))
-        {
-            Collider col = cube.GetComponent<Collider>();
-            if (col != null)
-            {
-                col.enabled = true;
-                col.isTrigger = false;
-                Debug.Log($"[RPC_OnDropConfirmed] ✅ Collider RE-ENABLED: enabled={col.enabled}, isTrigger={col.isTrigger}, HasInputAuthority={Object.HasInputAuthority}");
-            }
-
-            // Unparent the cube
-            cube.transform.SetParent(null);
-
-            // Set the world position and rotation from server
-            cube.transform.position = dropPosition;
-            cube.transform.rotation = dropRotation;
-
-            // Re-enable NetworkTransform and teleport (it was disabled during pickup)
-            NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
-            if (cubeNetTransform != null)
-            {
-                cubeNetTransform.Teleport(dropPosition, dropRotation);
-                cubeNetTransform.enabled = true;
-                Debug.Log($"[RPC_OnDropConfirmed] 🟢 CLIENT: NetworkTransform RE-ENABLED and teleported to {dropPosition}");
-            }
-
-            Debug.Log($"[RPC_OnDropConfirmed] ✅ CLIENT: Cube dropped at position {dropPosition} (from server)");
-        }
+        // Start coroutine to handle drop with proper timing
+        StartCoroutine(HandleDropConfirmedWithDelay(cubeId, dropPosition, dropRotation));
 
         // Clear local cache
         _carriedCube = null;
@@ -676,6 +654,52 @@ public class PlayerController : NetworkBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"[RPC_OnDropConfirmed] Client: Drop confirmed for cube {cubeId}, carry weight will transition to 0");
 #endif
+    }
+
+    private System.Collections.IEnumerator HandleDropConfirmedWithDelay(NetworkBehaviourId cubeId, Vector3 dropPosition, Quaternion dropRotation)
+    {
+        if (Runner.TryFindBehaviour(cubeId, out PickupableCube cube))
+        {
+            // Re-enable collider
+            Collider col = cube.GetComponent<Collider>();
+            if (col != null)
+            {
+                col.enabled = true;
+                col.isTrigger = false;
+                Debug.Log($"[HandleDropConfirmedWithDelay] Collider RE-ENABLED");
+            }
+
+            // Unparent the cube FIRST (while NetworkTransform is still disabled)
+            cube.transform.SetParent(null);
+
+            // Set the world position and rotation from server
+            cube.transform.position = dropPosition;
+            cube.transform.rotation = dropRotation;
+
+            Debug.Log($"[HandleDropConfirmedWithDelay] Position set to {dropPosition}");
+
+            // Get NetworkTransform
+            NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
+
+            // CRITICAL: Only re-enable NetworkTransform on SERVER
+            // Clients will receive position updates from server automatically
+            if (cubeNetTransform != null && Object.HasStateAuthority)
+            {
+                cubeNetTransform.enabled = true;
+                cubeNetTransform.Teleport(cube.transform.position, cube.transform.rotation);
+                Debug.Log($"[HandleDropConfirmedWithDelay] SERVER: NetworkTransform RE-ENABLED and teleported to {cube.transform.position}");
+            }
+            else if (cubeNetTransform != null)
+            {
+                // On clients, keep NetworkTransform disabled and just set position manually
+                Debug.Log($"[HandleDropConfirmedWithDelay] CLIENT: NetworkTransform stays DISABLED, position set manually to {cube.transform.position}");
+                Debug.Log($"[RPC_OnDropConfirmed] � CLIENT: NetworkTransform teleported to {dropPosition}");
+            }
+
+            Debug.Log($"[HandleDropConfirmedWithDelay] Cube dropped at position {cube.transform.position}");
+        }
+
+        yield return null;
     }
 
     public override void Render()
