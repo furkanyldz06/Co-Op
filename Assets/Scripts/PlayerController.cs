@@ -46,6 +46,8 @@ public class PlayerController : NetworkBehaviour
     [Networked] public NetworkBool IsCarrying { get; set; } // Is player carrying a cube?
     [Networked] public NetworkBehaviourId CarriedCubeId { get; set; } // ID of the carried cube
 
+
+    [SerializeField] private float spherecastRadius = 10f; // Maximum weight player can carry
     // Cached Components
     private MeshRenderer _renderer;
     private CharacterController _controller;
@@ -638,8 +640,8 @@ public class PlayerController : NetworkBehaviour
             cubeCollider.enabled = false;
         }
 
-        // Cast ray downward from cube CENTER position
-        if (Physics.Raycast(dropPosition, Vector3.down, out RaycastHit hit, maxDistance: 10f))
+        // Cast SPHERE downward from cube CENTER position (thicker detection, won't miss small gaps)
+        if (Physics.SphereCast(dropPosition, spherecastRadius, Vector3.down, out RaycastHit hit, maxDistance: 10f))
         {
             // Adjust drop position: ground point + half cube height (so bottom of cube touches ground)
             // Add safety offset to prevent clipping into ground

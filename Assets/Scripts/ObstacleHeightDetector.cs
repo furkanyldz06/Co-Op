@@ -12,6 +12,7 @@ public class ObstacleHeightDetector : MonoBehaviour
 
     [Header("Raycast Settings")]
     [SerializeField] private float _raycastDistance = 1f;
+    [SerializeField] private float _spherecastRadius = 0.2f; // Radius of the sphere (thicker detection)
     [SerializeField] private float _raycastStartHeight = 0.2f; // Start at foot level
     [SerializeField] private float _raycastStepHeight = 0.1f; // How much to move up each step
     [SerializeField] private float _maxDetectionHeight = 3f; // Maximum height to check
@@ -71,14 +72,23 @@ public class ObstacleHeightDetector : MonoBehaviour
             // Update ray origin height
             rayOrigin = _player.position + Vector3.up * height;
 
-            // Cast ray forward
-            bool hitObstacle = Physics.Raycast(rayOrigin, forwardDirection, out RaycastHit hit, _raycastDistance, _obstacleLayer);
+            // Cast SPHERE forward (thicker detection, won't miss small gaps)
+            bool hitObstacle = Physics.SphereCast(rayOrigin, _spherecastRadius, forwardDirection, out RaycastHit hit, _raycastDistance, _obstacleLayer);
 
             // Debug visualization
             if (_showDebugRays)
             {
                 Color rayColor = hitObstacle ? _hitRayColor : _clearRayColor;
+
+                // Draw the sphere at start and end positions
                 Debug.DrawRay(rayOrigin, forwardDirection * _raycastDistance, rayColor);
+
+                // Draw sphere wireframe at origin
+                DrawDebugSphere(rayOrigin, _spherecastRadius, rayColor);
+
+                // Draw sphere wireframe at end point
+                Vector3 endPoint = rayOrigin + forwardDirection * _raycastDistance;
+                DrawDebugSphere(endPoint, _spherecastRadius, rayColor);
             }
 
             if (!hitObstacle)
@@ -143,6 +153,60 @@ public class ObstacleHeightDetector : MonoBehaviour
         if (_heightMarker == null)
         {
             _heightMarker = transform;
+        }
+
+        // Clamp values to reasonable ranges
+        _raycastDistance = Mathf.Max(0.1f, _raycastDistance);
+        _spherecastRadius = Mathf.Max(0.01f, _spherecastRadius);
+        _raycastStartHeight = Mathf.Max(0f, _raycastStartHeight);
+        _raycastStepHeight = Mathf.Max(0.01f, _raycastStepHeight);
+        _maxDetectionHeight = Mathf.Max(_raycastStartHeight, _maxDetectionHeight);
+        _markerMoveSpeed = Mathf.Max(0.1f, _markerMoveSpeed);
+    }
+
+    /// <summary>
+    /// Draw a debug sphere using line segments (for visualizing SphereCast)
+    /// </summary>
+    private void DrawDebugSphere(Vector3 center, float radius, Color color)
+    {
+        // Draw 3 circles (XY, XZ, YZ planes) to represent sphere
+        int segments = 16;
+        float angleStep = 360f / segments;
+
+        // XY plane circle
+        for (int i = 0; i < segments; i++)
+        {
+            float angle1 = i * angleStep * Mathf.Deg2Rad;
+            float angle2 = (i + 1) * angleStep * Mathf.Deg2Rad;
+
+            Vector3 point1 = center + new Vector3(Mathf.Cos(angle1) * radius, Mathf.Sin(angle1) * radius, 0);
+            Vector3 point2 = center + new Vector3(Mathf.Cos(angle2) * radius, Mathf.Sin(angle2) * radius, 0);
+
+            Debug.DrawLine(point1, point2, color);
+        }
+
+        // XZ plane circle
+        for (int i = 0; i < segments; i++)
+        {
+            float angle1 = i * angleStep * Mathf.Deg2Rad;
+            float angle2 = (i + 1) * angleStep * Mathf.Deg2Rad;
+
+            Vector3 point1 = center + new Vector3(Mathf.Cos(angle1) * radius, 0, Mathf.Sin(angle1) * radius);
+            Vector3 point2 = center + new Vector3(Mathf.Cos(angle2) * radius, 0, Mathf.Sin(angle2) * radius);
+
+            Debug.DrawLine(point1, point2, color);
+        }
+
+        // YZ plane circle
+        for (int i = 0; i < segments; i++)
+        {
+            float angle1 = i * angleStep * Mathf.Deg2Rad;
+            float angle2 = (i + 1) * angleStep * Mathf.Deg2Rad;
+
+            Vector3 point1 = center + new Vector3(0, Mathf.Cos(angle1) * radius, Mathf.Sin(angle1) * radius);
+            Vector3 point2 = center + new Vector3(0, Mathf.Cos(angle2) * radius, Mathf.Sin(angle2) * radius);
+
+            Debug.DrawLine(point1, point2, color);
         }
     }
 

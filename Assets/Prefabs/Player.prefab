@@ -1486,7 +1486,8 @@ MonoBehaviour:
   _player: {fileID: 5788117732827410695}
   _heightMarker: {fileID: 4612019135336705563}
   _raycastDistance: 2.58
-  _raycastStartHeight: -0.4
+  _spherecastRadius: 0.35
+  _raycastStartHeight: 0
   _raycastStepHeight: 1
   _maxDetectionHeight: 10.5
   _obstacleLayer:
@@ -2302,6 +2303,7 @@ MonoBehaviour:
     Object:
       Raw: 0
     Behaviour: 0
+  spherecastRadius: 0.35
 --- !u!114 &5187379185714689782
 MonoBehaviour:
   m_ObjectHideFlags: 0
