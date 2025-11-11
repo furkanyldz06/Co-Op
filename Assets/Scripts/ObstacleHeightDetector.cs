@@ -132,12 +132,21 @@ public class ObstacleHeightDetector : MonoBehaviour
         // Set local position - only Y changes, X and Z stay as you set them in Inspector
         _heightMarker.localPosition = new Vector3(currentLocalPos.x, newY, currentLocalPos.z);
 
-        // Update arrow visibility based on carrying state
+        // Update arrow visibility based on carrying state (ONLY for local player)
         if(_playerController != null && _arrow != null)
         {
-            // Check both IsCarrying AND CarriedCubeId to ensure accurate state
-            bool isActuallyCarrying = _playerController.IsCarrying && _playerController.CarriedCubeId != default;
-            _arrow.SetActive(isActuallyCarrying);
+            // Only show arrow for the LOCAL player (the one you control)
+            if (_playerController.Object.HasInputAuthority)
+            {
+                // Check both IsCarrying AND CarriedCubeId to ensure accurate state
+                bool isActuallyCarrying = _playerController.IsCarrying && _playerController.CarriedCubeId != default;
+                _arrow.SetActive(isActuallyCarrying);
+            }
+            else
+            {
+                // Hide arrow for other players (remote players)
+                _arrow.SetActive(false);
+            }
         }
     }
 
