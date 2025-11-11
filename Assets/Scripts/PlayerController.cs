@@ -595,6 +595,40 @@ public class PlayerController : NetworkBehaviour
         Vector3 dropPosition = cube.transform.position;
         Quaternion dropRotation = cube.transform.rotation;
 
+        // RAYCAST: Find ground below the cube to prevent floating
+        Collider cubeCollider = cube.GetComponent<Collider>();
+
+        // Calculate cube half-height from local scale (more reliable than bounds during parent changes)
+        // Assuming cube has a BoxCollider with size (1,1,1) and pivot at center
+        float cubeHalfHeight = cube.transform.localScale.y * 0.5f;
+
+        Debug.Log($"[RPC_RequestDrop] 📏 Cube half-height: {cubeHalfHeight}, Scale: {cube.transform.localScale}");
+
+        // Temporarily disable cube's own collider to prevent raycast hitting itself
+        bool wasColliderEnabled = cubeCollider != null && cubeCollider.enabled;
+        if (cubeCollider != null)
+        {
+            cubeCollider.enabled = false;
+        }
+
+        // Cast ray downward from cube CENTER position
+        if (Physics.Raycast(dropPosition, Vector3.down, out RaycastHit hit, maxDistance: 10f))
+        {
+            // Adjust drop position: ground point + half cube height (so bottom of cube touches ground)
+            dropPosition = hit.point + Vector3.up * cubeHalfHeight;
+            Debug.Log($"[RPC_RequestDrop] 🎯 Ground found at {hit.point}, cube bottom will be at {hit.point}, cube center at {dropPosition}");
+        }
+        else
+        {
+            Debug.Log($"[RPC_RequestDrop] ⚠️ No ground found below cube, dropping at current position {dropPosition}");
+        }
+
+        // Re-enable collider (will be set to non-trigger later)
+        if (cubeCollider != null && wasColliderEnabled)
+        {
+            cubeCollider.enabled = true;
+        }
+
         // Unparent the cube FIRST (while NetworkTransform is still disabled)
         cube.transform.SetParent(null);
 
@@ -672,11 +706,33 @@ public class PlayerController : NetworkBehaviour
             // Unparent the cube FIRST (while NetworkTransform is still disabled)
             cube.transform.SetParent(null);
 
-            // Set the world position and rotation from server
-            cube.transform.position = dropPosition;
+            // Store starting position for lerp animation
+            Vector3 startPosition = cube.transform.position;
+
+            // Set rotation immediately (no animation needed)
             cube.transform.rotation = dropRotation;
 
-            Debug.Log($"[HandleDropConfirmedWithDelay] Position set to {dropPosition}");
+            Debug.Log($"[HandleDropConfirmedWithDelay] Starting drop animation from {startPosition} to {dropPosition}");
+
+            // LERP ANIMATION: Smoothly drop cube to ground
+            float dropDuration = 0.25f; // 0.25 seconds drop animation
+            float elapsedTime = 0f;
+
+            while (elapsedTime < dropDuration)
+            {
+                elapsedTime += Time.deltaTime;
+                float t = elapsedTime / dropDuration;
+
+                // Ease-out curve for more natural drop
+                t = 1f - Mathf.Pow(1f - t, 3f);
+
+                cube.transform.position = Vector3.Lerp(startPosition, dropPosition, t);
+                yield return null;
+            }
+
+            // Ensure final position is exact
+            cube.transform.position = dropPosition;
+            Debug.Log($"[HandleDropConfirmedWithDelay] Drop animation complete, final position: {dropPosition}");
 
             // Get NetworkTransform
             NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
