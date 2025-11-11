@@ -634,11 +634,17 @@ public class PlayerController : NetworkBehaviour
             // Use hit.normal to align cube with ground surface (works on slopes!)
             dropPosition = hit.point + hit.normal * (cubeHalfHeight + safetyOffset);
 
-            // Align cube rotation to ground normal (so cube sits flat on slopes)
-            // Quaternion.FromToRotation rotates from Vector3.up to hit.normal
-            dropRotation = Quaternion.FromToRotation(Vector3.up, hit.normal);
+            // Align cube rotation to ground normal BUT preserve Y rotation (yaw)
+            // 1. Get the original Y rotation
+            float originalYRotation = dropRotation.eulerAngles.y;
 
-            Debug.Log($"[RPC_RequestDrop] 🎯 Ground found at {hit.point}, normal: {hit.normal}, cube center at {dropPosition}, rotation aligned to slope");
+            // 2. Create rotation aligned to ground normal
+            Quaternion slopeRotation = Quaternion.FromToRotation(Vector3.up, hit.normal);
+
+            // 3. Apply Y rotation on top of slope alignment
+            dropRotation = slopeRotation * Quaternion.Euler(0, originalYRotation, 0);
+
+            Debug.Log($"[RPC_RequestDrop] 🎯 Ground found at {hit.point}, normal: {hit.normal}, Y rotation preserved: {originalYRotation}°");
         }
         else
         {
