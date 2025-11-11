@@ -482,10 +482,20 @@ public class PlayerController : NetworkBehaviour
         // Parent cube to left hand on server
         if (_leftHandBone != null)
         {
+            // CRITICAL: Disable NetworkTransform completely while being carried
+            // This prevents interpolation conflicts between parent transform and NetworkTransform
+            NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
+            if (cubeNetTransform != null)
+            {
+                cubeNetTransform.enabled = false;
+                Debug.Log($"[RPC_RequestPickup] 🔴 SERVER: NetworkTransform DISABLED (will stay disabled while carried)");
+            }
+
             cube.transform.SetParent(_leftHandBone);
             cube.transform.localPosition = _cubeHoldOffset;
             cube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
-            Debug.Log($"[RPC_RequestPickup] ✅ SERVER: Cube parented to LeftHand");
+
+            Debug.Log($"[RPC_RequestPickup] ✅ SERVER: Cube parented to LeftHand at local pos {_cubeHoldOffset}");
         }
 
         // Call RPC to all clients to disable collider and setup pickup
@@ -527,9 +537,19 @@ public class PlayerController : NetworkBehaviour
             // Parent cube to left hand on ALL clients
             if (_leftHandBone != null)
             {
+                // CRITICAL: Disable NetworkTransform completely while being carried
+                // This prevents interpolation conflicts between parent transform and NetworkTransform
+                NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
+                if (cubeNetTransform != null)
+                {
+                    cubeNetTransform.enabled = false;
+                    Debug.Log($"[RPC_OnPickupConfirmed] 🔴 CLIENT: NetworkTransform DISABLED (will stay disabled while carried)");
+                }
+
                 cube.transform.SetParent(_leftHandBone);
                 cube.transform.localPosition = _cubeHoldOffset;
                 cube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+
                 Debug.Log($"[RPC_OnPickupConfirmed] ✅ CLIENT: Cube parented to LeftHand, local pos: {cube.transform.localPosition}, world pos: {cube.transform.position}");
             }
             else
@@ -571,8 +591,27 @@ public class PlayerController : NetworkBehaviour
         // Store cube ID before clearing
         NetworkBehaviourId droppedCubeId = CarriedCubeId;
 
+        // Store current world position and rotation BEFORE unparenting
+        Vector3 dropPosition = cube.transform.position;
+        Quaternion dropRotation = cube.transform.rotation;
+
         // Unparent the cube
         cube.transform.SetParent(null);
+
+        // Set the world position and rotation
+        cube.transform.position = dropPosition;
+        cube.transform.rotation = dropRotation;
+
+        // Re-enable NetworkTransform and teleport (it was disabled during pickup)
+        NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
+        if (cubeNetTransform != null)
+        {
+            cubeNetTransform.Teleport(dropPosition, dropRotation);
+            cubeNetTransform.enabled = true;
+            Debug.Log($"[RPC_RequestDrop] 🟢 SERVER: NetworkTransform RE-ENABLED and teleported to {dropPosition}");
+        }
+
+        Debug.Log($"[RPC_RequestDrop] ✅ SERVER: Cube dropped at position {dropPosition}");
 
         // Update networked state (server-side)
         IsCarrying = false;
@@ -583,7 +622,8 @@ public class PlayerController : NetworkBehaviour
         cube.PickedUpBy = PlayerRef.None;
 
         // Notify all clients to re-enable collider and reset carry weight
-        RPC_OnDropConfirmed(droppedCubeId);
+        // Send the drop position and rotation to ensure all clients use the same values
+        RPC_OnDropConfirmed(droppedCubeId, dropPosition, dropRotation);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"[RPC_RequestDrop] Server: Dropped cube");
@@ -594,7 +634,7 @@ public class PlayerController : NetworkBehaviour
     /// RPC to confirm drop on all clients (called by server, executed on all clients)
     /// </summary>
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_OnDropConfirmed(NetworkBehaviourId cubeId, RpcInfo info = default)
+    private void RPC_OnDropConfirmed(NetworkBehaviourId cubeId, Vector3 dropPosition, Quaternion dropRotation, RpcInfo info = default)
     {
         // Re-enable collider on all clients
         if (Runner.TryFindBehaviour(cubeId, out PickupableCube cube))
@@ -602,14 +642,28 @@ public class PlayerController : NetworkBehaviour
             Collider col = cube.GetComponent<Collider>();
             if (col != null)
             {
-                col.enabled = true; // Enable first
-                col.isTrigger = false; // Then set to solid collider
+                col.enabled = true;
+                col.isTrigger = false;
                 Debug.Log($"[RPC_OnDropConfirmed] ✅ Collider RE-ENABLED: enabled={col.enabled}, isTrigger={col.isTrigger}, HasInputAuthority={Object.HasInputAuthority}");
             }
 
-            // Unparent the cube on all clients
+            // Unparent the cube
             cube.transform.SetParent(null);
-            Debug.Log($"[RPC_OnDropConfirmed] ✅ Cube unparented on client");
+
+            // Set the world position and rotation from server
+            cube.transform.position = dropPosition;
+            cube.transform.rotation = dropRotation;
+
+            // Re-enable NetworkTransform and teleport (it was disabled during pickup)
+            NetworkTransform cubeNetTransform = cube.GetComponent<NetworkTransform>();
+            if (cubeNetTransform != null)
+            {
+                cubeNetTransform.Teleport(dropPosition, dropRotation);
+                cubeNetTransform.enabled = true;
+                Debug.Log($"[RPC_OnDropConfirmed] 🟢 CLIENT: NetworkTransform RE-ENABLED and teleported to {dropPosition}");
+            }
+
+            Debug.Log($"[RPC_OnDropConfirmed] ✅ CLIENT: Cube dropped at position {dropPosition} (from server)");
         }
 
         // Clear local cache
