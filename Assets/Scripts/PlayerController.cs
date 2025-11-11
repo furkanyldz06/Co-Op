@@ -53,9 +53,6 @@ public class PlayerController : NetworkBehaviour
     private PickupableCube _carriedCube; // Reference to the carried cube
     private Collider _carriedCubeCol; // Cached collider
 
-    // Pickup state tracking
-    private bool _isPickupInProgress = false; // Track if pickup is in progress
-
     // Constants
     private const float MOVEMENT_THRESHOLD = 0.01f; // sqrMagnitude için optimize
     private const float GROUND_STICK_FORCE = -2f;
@@ -75,6 +72,44 @@ public class PlayerController : NetworkBehaviour
     {
         _renderer = GetComponent<MeshRenderer>();
         _controller = GetComponent<CharacterController>();
+
+        // Find LeftHand bone automatically if not set in Inspector
+        if (_leftHandBone == null)
+        {
+            _leftHandBone = FindLeftHandBone(transform);
+            if (_leftHandBone != null)
+            {
+                Debug.Log($"[PlayerController] ✅ Found LeftHand bone: {_leftHandBone.name}");
+            }
+            else
+            {
+                Debug.LogError($"[PlayerController] ❌ Could not find LeftHand bone!");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Recursively search for LeftHand bone in the hierarchy
+    /// </summary>
+    private Transform FindLeftHandBone(Transform parent)
+    {
+        // Check if this transform is the LeftHand
+        if (parent.name.Contains("LeftHand"))
+        {
+            return parent;
+        }
+
+        // Recursively search children
+        foreach (Transform child in parent)
+        {
+            Transform result = FindLeftHandBone(child);
+            if (result != null)
+            {
+                return result;
+            }
+        }
+
+        return null;
     }
 
     // Static array to avoid allocation every frame
@@ -331,9 +366,6 @@ public class PlayerController : NetworkBehaviour
             // Pickup logic
             HandlePickup(data);
         }
-
-        // CRITICAL: Enforce pickup state every network tick
-        EnforcePickupState();
     }
 
     private void HandlePickup(NetworkInputData data)
@@ -354,12 +386,6 @@ public class PlayerController : NetworkBehaviour
 
     private void TryPickupCube()
     {
-        if (_isPickupInProgress)
-        {
-            Debug.LogWarning($"[TryPickupCube] ❌ Pickup already in progress!");
-            return;
-        }
-
         Debug.Log($"[TryPickupCube] 🔍 Searching for cubes in range {_pickupRange}m from position {transform.position}");
 
         // Find all pickupable cubes in range
@@ -396,9 +422,6 @@ public class PlayerController : NetworkBehaviour
             _carriedCube = closestCube;
             _carriedCubeCol = closestCube.GetComponent<Collider>();
 
-            // Set flag to start enforcing pickup in FixedUpdateNetwork
-            _isPickupInProgress = true;
-
             // Reset carry weight to start transition
             _currentCarryWeight = 0f;
 
@@ -424,80 +447,17 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Enforces pickup state every network tick - GUARANTEES cube stays in hand
-    /// </summary>
-    private void EnforcePickupState()
-    {
-        // If pickup is in progress, enforce it every tick
-        if (_isPickupInProgress && _carriedCube != null)
-        {
-            // Force collider trigger (disable collision)
-            if (_carriedCubeCol != null && !_carriedCubeCol.isTrigger)
-            {
-                _carriedCubeCol.isTrigger = true;
-                _carriedCubeCol.enabled = false;
-                Debug.LogWarning($"[EnforcePickupState] Fixed collider trigger!");
-            }
 
-            // Once server confirms, clear the flag
-            if (IsCarrying)
-            {
-                _isPickupInProgress = false;
-                Debug.Log($"[EnforcePickupState] Pickup confirmed by server, enforcement complete");
-            }
-        }
-
-        // If carrying (server confirmed), keep enforcing position
-        // ONLY on the player who has input authority (the one carrying)
-        if (IsCarrying && _carriedCube != null && _leftHandBone != null && Object.HasInputAuthority)
-        {
-            // Calculate target position
-            Vector3 targetPos = _leftHandBone.TransformPoint(_cubeHoldOffset);
-            Quaternion targetRot = _leftHandBone.rotation * Quaternion.Euler(_cubeHoldRotation);
-
-            // Update position in world space (NetworkTransform will sync this)
-            _carriedCube.transform.position = targetPos;
-            _carriedCube.transform.rotation = targetRot;
-
-            Debug.Log($"[EnforcePickupState] 🔄 Updating cube position: {targetPos}, LeftHand: {_leftHandBone.position}, HasInputAuthority: {Object.HasInputAuthority}");
-        }
-        else if (IsCarrying && _carriedCube != null)
-        {
-            Debug.LogWarning($"[EnforcePickupState] ❌ NOT updating position: IsCarrying={IsCarrying}, _carriedCube={_carriedCube != null}, _leftHandBone={_leftHandBone != null}, HasInputAuthority={Object.HasInputAuthority}");
-        }
-    }
 
 
 
     private void DropCube()
     {
-        // Clear pickup flag
-        _isPickupInProgress = false;
-
-        // Restore collider - ENABLE IT FIRST
-        if (_carriedCubeCol != null)
-        {
-            _carriedCubeCol.enabled = true; // Enable first
-            _carriedCubeCol.isTrigger = false; // Then set to solid collider
-            Debug.Log($"[DropCube] ✅ Collider re-enabled: enabled={_carriedCubeCol.enabled}, isTrigger={_carriedCubeCol.isTrigger}");
-        }
-
-        // Unparent
-        if (_carriedCube != null)
-        {
-            _carriedCube.transform.SetParent(null);
-        }
-
-        // Clear cache
-        _carriedCube = null;
-        _carriedCubeCol = null;
-
         // Call RPC to request drop from server
         RPC_RequestDrop();
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        Debug.Log($"[DropCube] Dropped cube and cleared cache");
+        Debug.Log($"[DropCube] Requesting drop from server...");
 #endif
     }
 
@@ -518,6 +478,15 @@ public class PlayerController : NetworkBehaviour
         // Update cube state (server-side)
         cube.IsPickedUp = true;
         cube.PickedUpBy = Object.InputAuthority;
+
+        // Parent cube to left hand on server
+        if (_leftHandBone != null)
+        {
+            cube.transform.SetParent(_leftHandBone);
+            cube.transform.localPosition = _cubeHoldOffset;
+            cube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+            Debug.Log($"[RPC_RequestPickup] ✅ SERVER: Cube parented to LeftHand");
+        }
 
         // Call RPC to all clients to disable collider and setup pickup
         RPC_OnPickupConfirmed(cubeId);
@@ -553,6 +522,19 @@ public class PlayerController : NetworkBehaviour
                 col.isTrigger = true;
                 col.enabled = false;
                 Debug.Log($"[RPC_OnPickupConfirmed] ✅ Collider DISABLED: enabled={col.enabled}, isTrigger={col.isTrigger}, HasInputAuthority={Object.HasInputAuthority}");
+            }
+
+            // Parent cube to left hand on ALL clients
+            if (_leftHandBone != null)
+            {
+                cube.transform.SetParent(_leftHandBone);
+                cube.transform.localPosition = _cubeHoldOffset;
+                cube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
+                Debug.Log($"[RPC_OnPickupConfirmed] ✅ CLIENT: Cube parented to LeftHand, local pos: {cube.transform.localPosition}, world pos: {cube.transform.position}");
+            }
+            else
+            {
+                Debug.LogError($"[RPC_OnPickupConfirmed] ❌ CLIENT: _leftHandBone is NULL!");
             }
 
             // CRITICAL: Make sure MeshRenderer is enabled
@@ -624,7 +606,15 @@ public class PlayerController : NetworkBehaviour
                 col.isTrigger = false; // Then set to solid collider
                 Debug.Log($"[RPC_OnDropConfirmed] ✅ Collider RE-ENABLED: enabled={col.enabled}, isTrigger={col.isTrigger}, HasInputAuthority={Object.HasInputAuthority}");
             }
+
+            // Unparent the cube on all clients
+            cube.transform.SetParent(null);
+            Debug.Log($"[RPC_OnDropConfirmed] ✅ Cube unparented on client");
         }
+
+        // Clear local cache
+        _carriedCube = null;
+        _carriedCubeCol = null;
 
         // Reset carry weight to transition back to 0
         _currentCarryWeight = 1f; // Start from 1 and let it transition to 0
