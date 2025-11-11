@@ -629,9 +629,16 @@ public class PlayerController : NetworkBehaviour
         {
             // Adjust drop position: ground point + half cube height (so bottom of cube touches ground)
             // Add safety offset to prevent clipping into ground
-            float safetyOffset = 0.02f; // Increased from 0.01 to 0.05
-            dropPosition = hit.point + Vector3.up * (cubeHalfHeight + safetyOffset);
-            Debug.Log($"[RPC_RequestDrop] 🎯 Ground found at {hit.point}, cube bottom will be at {hit.point.y + safetyOffset}, cube center at {dropPosition}");
+            float safetyOffset = 0.02f;
+
+            // Use hit.normal to align cube with ground surface (works on slopes!)
+            dropPosition = hit.point + hit.normal * (cubeHalfHeight + safetyOffset);
+
+            // Align cube rotation to ground normal (so cube sits flat on slopes)
+            // Quaternion.FromToRotation rotates from Vector3.up to hit.normal
+            dropRotation = Quaternion.FromToRotation(Vector3.up, hit.normal);
+
+            Debug.Log($"[RPC_RequestDrop] 🎯 Ground found at {hit.point}, normal: {hit.normal}, cube center at {dropPosition}, rotation aligned to slope");
         }
         else
         {
