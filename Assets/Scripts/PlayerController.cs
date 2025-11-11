@@ -34,6 +34,7 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private Vector3 _cubeHoldOffset = new Vector3(0.05f, 0.05f, 0.1f); // Local position offset
     [SerializeField] private Vector3 _cubeHoldRotation = new Vector3(0, 0, 0); // Local rotation
     [SerializeField] private float _pickupRange = 2f;
+    [SerializeField] private Transform _marker; // mixamorig:LeftHand
 
     // Networked Properties
     [Networked] public NetworkBool IsWalking { get; set; }
@@ -592,7 +593,8 @@ public class PlayerController : NetworkBehaviour
         NetworkBehaviourId droppedCubeId = CarriedCubeId;
 
         // Store current world position and rotation BEFORE unparenting
-        Vector3 dropPosition = cube.transform.position;
+        Vector3 dropPosition = _marker.position;
+        // Vector3 dropPosition = cube.transform.position;
         Quaternion dropRotation = cube.transform.rotation;
 
         // RAYCAST: Find ground below the cube to prevent floating
