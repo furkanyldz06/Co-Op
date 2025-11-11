@@ -15,13 +15,11 @@ public class PickupableCube : NetworkBehaviour
     [Networked] public PlayerRef PickedUpBy { get; set; }
 
     // Cached Components
-    private Rigidbody _rigidbody;
     private Collider _collider;
     private MeshRenderer _meshRenderer;
 
     private void Awake()
     {
-        _rigidbody = GetComponent<Rigidbody>();
         _collider = GetComponent<Collider>();
         _meshRenderer = GetComponent<MeshRenderer>();
     }
