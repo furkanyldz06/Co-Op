@@ -1542,7 +1542,7 @@ MonoBehaviour:
   _raycastDistance: 2.58
   _raycastStartHeight: -0.4
   _raycastStepHeight: 1
-  _maxDetectionHeight: 30
+  _maxDetectionHeight: 10.5
   _obstacleLayer:
     serializedVersion: 2
     m_Bits: 4294967295
