@@ -597,12 +597,25 @@ public class PlayerController : NetworkBehaviour
 
         // RAYCAST: Find ground below the cube to prevent floating
         Collider cubeCollider = cube.GetComponent<Collider>();
+        MeshRenderer meshRenderer = cube.GetComponent<MeshRenderer>();
 
-        // Calculate cube half-height from local scale (more reliable than bounds during parent changes)
-        // Assuming cube has a BoxCollider with size (1,1,1) and pivot at center
-        float cubeHalfHeight = cube.transform.localScale.y * 0.5f;
+        // Use MESH bounds instead of collider bounds (mesh might be slightly larger)
+        float cubeHalfHeight = 0.5f; // Default fallback
 
-        Debug.Log($"[RPC_RequestDrop] 📏 Cube half-height: {cubeHalfHeight}, Scale: {cube.transform.localScale}");
+        if (meshRenderer != null)
+        {
+            // Get the actual visual bounds of the mesh
+            cubeHalfHeight = meshRenderer.bounds.extents.y;
+            Debug.Log($"[RPC_RequestDrop] 📏 Using MESH bounds - Cube half-height: {cubeHalfHeight}, Mesh bounds: {meshRenderer.bounds.size}");
+        }
+        else if (cubeCollider != null)
+        {
+            // Fallback to collider bounds
+            cubeHalfHeight = cubeCollider.bounds.extents.y;
+            Debug.Log($"[RPC_RequestDrop] 📏 Using COLLIDER bounds - Cube half-height: {cubeHalfHeight}");
+        }
+
+        Debug.Log($"[RPC_RequestDrop] 📏 Final half-height: {cubeHalfHeight}, Scale: {cube.transform.localScale}");
 
         // Temporarily disable cube's own collider to prevent raycast hitting itself
         bool wasColliderEnabled = cubeCollider != null && cubeCollider.enabled;
@@ -615,8 +628,10 @@ public class PlayerController : NetworkBehaviour
         if (Physics.Raycast(dropPosition, Vector3.down, out RaycastHit hit, maxDistance: 10f))
         {
             // Adjust drop position: ground point + half cube height (so bottom of cube touches ground)
-            dropPosition = hit.point + Vector3.up * cubeHalfHeight;
-            Debug.Log($"[RPC_RequestDrop] 🎯 Ground found at {hit.point}, cube bottom will be at {hit.point}, cube center at {dropPosition}");
+            // Add safety offset to prevent clipping into ground
+            float safetyOffset = 0.02f; // Increased from 0.01 to 0.05
+            dropPosition = hit.point + Vector3.up * (cubeHalfHeight + safetyOffset);
+            Debug.Log($"[RPC_RequestDrop] 🎯 Ground found at {hit.point}, cube bottom will be at {hit.point.y + safetyOffset}, cube center at {dropPosition}");
         }
         else
         {
