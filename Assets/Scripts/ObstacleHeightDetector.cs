@@ -37,6 +37,10 @@ public class ObstacleHeightDetector : MonoBehaviour
 
     [SerializeField] GameObject _arrow;
 
+    // Optimization: Throttle update rate
+    private float _lastUpdateTime = 0f;
+    private const float UPDATE_INTERVAL = 0.05f; // Update every 50ms (20 FPS) instead of every frame
+
 
     private void Update()
     {
@@ -46,10 +50,15 @@ public class ObstacleHeightDetector : MonoBehaviour
             return;
         }
 
-        // Detect obstacle height
-        DetectObstacleHeight();
+        // Throttle updates to reduce CPU usage (update every 50ms instead of every frame)
+        if (Time.time - _lastUpdateTime >= UPDATE_INTERVAL)
+        {
+            // Detect obstacle height
+            DetectObstacleHeight();
+            _lastUpdateTime = Time.time;
+        }
 
-        // Update marker position
+        // Always update marker position for smooth movement (lerp needs every frame)
         UpdateMarkerPosition();
     }
 
@@ -175,11 +184,13 @@ public class ObstacleHeightDetector : MonoBehaviour
 
     /// <summary>
     /// Draw a debug sphere using line segments (for visualizing SphereCast)
+    /// OPTIMIZED: Reduced segment count from 16 to 8 for better performance
     /// </summary>
     private void DrawDebugSphere(Vector3 center, float radius, Color color)
     {
         // Draw 3 circles (XY, XZ, YZ planes) to represent sphere
-        int segments = 16;
+        // OPTIMIZATION: Use 8 segments instead of 16 (50% less draw calls)
+        int segments = 8;
         float angleStep = 360f / segments;
 
         // XY plane circle

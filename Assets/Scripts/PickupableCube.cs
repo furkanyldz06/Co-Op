@@ -77,26 +77,15 @@ public class PickupableCube : NetworkBehaviour
         // Physics is now handled by PlayerController for better synchronization
         // This prevents conflicts between server and client updates
 
-        // DEBUG: Make sure MeshRenderer is always enabled
-        if (_meshRenderer != null)
+        // OPTIMIZATION: Removed per-frame debug logs to improve performance
+        // Only check critical errors in development builds
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (_meshRenderer != null && !_meshRenderer.enabled)
         {
-            if (!_meshRenderer.enabled)
-            {
-                _meshRenderer.enabled = true;
-                Debug.LogError($"[PickupableCube] ❌ MeshRenderer was DISABLED! Re-enabled it.");
-            }
-
-            // Check if cube is visible
-            bool isVisible = _meshRenderer.isVisible;
-            if (IsPickedUp && !isVisible)
-            {
-                Debug.LogWarning($"[PickupableCube] ⚠️ Cube is picked up but NOT VISIBLE! Position: {transform.position}, Layer: {gameObject.layer}, Parent: {(transform.parent != null ? transform.parent.name : "NULL")}");
-            }
+            _meshRenderer.enabled = true;
+            Debug.LogError($"[PickupableCube] ❌ MeshRenderer was DISABLED! Re-enabled it.");
         }
-        else
-        {
-            Debug.LogError($"[PickupableCube] ❌ NO MeshRenderer component!");
-        }
+#endif
     }
 
 #if UNITY_EDITOR

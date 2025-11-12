@@ -83,12 +83,13 @@ public class CubeSpawner : NetworkBehaviour
 
     private bool IsPositionInPlayerSpawnArea(Vector3 position)
     {
+        // OPTIMIZATION: Use sqrMagnitude instead of Distance to avoid expensive sqrt
         // Check horizontal distance only (ignore Y)
-        Vector3 positionFlat = new Vector3(position.x, 0, position.z);
-        Vector3 playerSpawnFlat = new Vector3(_playerSpawnCenter.x, 0, _playerSpawnCenter.z);
+        float dx = position.x - _playerSpawnCenter.x;
+        float dz = position.z - _playerSpawnCenter.z;
+        float distanceSqr = dx * dx + dz * dz;
 
-        float distance = Vector3.Distance(positionFlat, playerSpawnFlat);
-        return distance < _playerSpawnExclusionRadius;
+        return distanceSqr < (_playerSpawnExclusionRadius * _playerSpawnExclusionRadius);
     }
 
     private bool TrySpawnCubeAt(Vector3 spawnPosition)

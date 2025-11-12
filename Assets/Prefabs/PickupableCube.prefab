@@ -147,6 +147,8 @@ MonoBehaviour:
   _playerLayer:
     serializedVersion: 2
     m_Bits: 1
+  _highlightColor: {r: 0.5235849, g: 1, b: 0.6918598, a: 1}
+  _originalColor: {r: 1, g: 1, b: 1, a: 1}
   _IsPickedUp:
     _value: 0
 --- !u!114 &3605739470208219284

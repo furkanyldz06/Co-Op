@@ -69,10 +69,15 @@ public class PlayerController : NetworkBehaviour
 
     // Cube highlight tracking
     private PickupableCube _lastHighlightedCube = null;
+    private float _lastHighlightUpdateTime = 0f;
+    private const float HIGHLIGHT_UPDATE_INTERVAL = 0.1f; // Update every 100ms instead of every frame
 
     // Carry layer animation
     private float _currentCarryWeight = 0f; // Current carry layer weight
     private const float CARRY_TRANSITION_SPEED = 5f; // Speed of transition (higher = faster)
+
+    // Collider buffer for Physics.OverlapSphere (reuse to avoid allocations)
+    private Collider[] _overlapBuffer = new Collider[32]; // Max 32 colliders in range
 
     private void Awake()
     {
@@ -394,26 +399,25 @@ public class PlayerController : NetworkBehaviour
     {
         Debug.Log($"[TryPickupCube] 🔍 Searching for cubes in range {_pickupRange}m from position {transform.position}");
 
-        // Find all pickupable cubes in range
-        Collider[] colliders = Physics.OverlapSphere(transform.position, _pickupRange);
-        Debug.Log($"[TryPickupCube] Found {colliders.Length} colliders in range");
+        // OPTIMIZATION: Use non-allocating OverlapSphereNonAlloc
+        int hitCount = Physics.OverlapSphereNonAlloc(transform.position, _pickupRange, _overlapBuffer);
+        Debug.Log($"[TryPickupCube] Found {hitCount} colliders in range");
 
         PickupableCube closestCube = null;
-        float closestDistance = float.MaxValue;
+        float closestDistanceSqr = float.MaxValue; // Use sqrMagnitude to avoid sqrt
 
-        foreach (var collider in colliders)
+        for (int i = 0; i < hitCount; i++)
         {
-            var cube = collider.GetComponent<PickupableCube>();
+            var cube = _overlapBuffer[i].GetComponent<PickupableCube>();
             if (cube != null)
             {
-                Debug.Log($"[TryPickupCube] Found PickupableCube: IsPickedUp={cube.IsPickedUp}, Distance={Vector3.Distance(transform.position, cube.transform.position):F2}");
-
                 if (!cube.IsPickedUp)
                 {
-                    float distance = Vector3.Distance(transform.position, cube.transform.position);
-                    if (distance < closestDistance)
+                    // OPTIMIZATION: Use sqrMagnitude instead of Distance
+                    float distanceSqr = (transform.position - cube.transform.position).sqrMagnitude;
+                    if (distanceSqr < closestDistanceSqr)
                     {
-                        closestDistance = distance;
+                        closestDistanceSqr = distanceSqr;
                         closestCube = cube;
                     }
                 }
@@ -422,7 +426,7 @@ public class PlayerController : NetworkBehaviour
 
         if (closestCube != null)
         {
-            Debug.Log($"[TryPickupCube] ✅ Found cube at distance {closestDistance:F2}, starting pickup");
+            Debug.Log($"[TryPickupCube] ✅ Found cube at distance {Mathf.Sqrt(closestDistanceSqr):F2}, starting pickup");
 
             // Remove highlight from cube (we're picking it up)
             closestCube.SetHighlight(false);
@@ -453,7 +457,7 @@ public class PlayerController : NetworkBehaviour
         }
         else
         {
-            Debug.LogWarning($"[TryPickupCube] ❌ No cube found in range! Searched {colliders.Length} colliders.");
+            // Debug.LogWarning($"[TryPickupCube] ❌ No cube found in range! Searched {colliders.Length} colliders.");
         }
     }
 
@@ -832,10 +836,15 @@ public class PlayerController : NetworkBehaviour
         // Update carried cube position (runs on all clients)
         UpdateCarriedCube();
 
-        // Update cube highlighting (only for local player)
+        // Update cube highlighting (only for local player, throttled to reduce CPU usage)
         if (Object.HasInputAuthority && !IsCarrying)
         {
-            UpdateCubeHighlight();
+            // Only update every HIGHLIGHT_UPDATE_INTERVAL seconds (100ms)
+            if (Time.time - _lastHighlightUpdateTime >= HIGHLIGHT_UPDATE_INTERVAL)
+            {
+                UpdateCubeHighlight();
+                _lastHighlightUpdateTime = Time.time;
+            }
         }
 
         // Update name text to face the LOCAL camera (billboard effect)
@@ -898,28 +907,29 @@ public class PlayerController : NetworkBehaviour
 
     private void UpdateCubeHighlight()
     {
-        // Find all cubes in pickup range
-        Collider[] colliders = Physics.OverlapSphere(transform.position, _pickupRange);
+        // Use non-allocating OverlapSphereNonAlloc to reuse buffer
+        int hitCount = Physics.OverlapSphereNonAlloc(transform.position, _pickupRange, _overlapBuffer);
 
         PickupableCube closestCube = null;
-        float closestDistance = float.MaxValue;
+        float closestDistanceSqr = float.MaxValue; // Use sqrMagnitude to avoid sqrt
 
         // Find the closest pickupable cube
-        foreach (var collider in colliders)
+        for (int i = 0; i < hitCount; i++)
         {
-            var cube = collider.GetComponent<PickupableCube>();
+            var cube = _overlapBuffer[i].GetComponent<PickupableCube>();
             if (cube != null && !cube.IsPickedUp)
             {
-                float distance = Vector3.Distance(transform.position, cube.transform.position);
-                if (distance < closestDistance)
+                // Use sqrMagnitude instead of Distance to avoid expensive sqrt
+                float distanceSqr = (transform.position - cube.transform.position).sqrMagnitude;
+                if (distanceSqr < closestDistanceSqr)
                 {
-                    closestDistance = distance;
+                    closestDistanceSqr = distanceSqr;
                     closestCube = cube;
                 }
             }
         }
 
-        // Update highlight state
+        // Update highlight state (only if changed)
         if (closestCube != _lastHighlightedCube)
         {
             // Remove highlight from previous cube
