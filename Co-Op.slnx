@@ -1,5 +1,7 @@
 ﻿<Solution>
   <Project Path="Fusion.Unity.Editor.csproj" />
+  <Project Path="RootMotion.csproj" />
+  <Project Path="RootMotionEditor.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Fusion.Unity.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
