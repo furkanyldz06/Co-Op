@@ -6,7 +6,7 @@ public class PlayerController : NetworkBehaviour
 {
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 5f;
-    [SerializeField] private float _rotationSpeed = 10f;
+    [SerializeField] private float _rotationSpeed = 5f; // Lowered for smoother rotation
     [SerializeField] private float _gravity = -20f;
 
     [Header("Sprint Settings")]
@@ -307,9 +307,9 @@ public class PlayerController : NetworkBehaviour
             {
                 direction.Normalize();
 
-                // Rotate towards movement direction
+                // Rotate towards movement direction (smooth rotation)
                 Quaternion targetRotation = Quaternion.LookRotation(direction);
-                transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
 
                 // Calculate speed with sprint multiplier
                 float currentSpeed = data.isSprinting ? _moveSpeed * _sprintMultiplier : _moveSpeed;
