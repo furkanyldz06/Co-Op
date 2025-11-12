@@ -2271,7 +2271,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _moveSpeed: 5
-  _rotationSpeed: 4.6
+  _rotationSpeed: 7
   _gravity: -20
   _sprintMultiplier: 2
   _jumpForce: 8

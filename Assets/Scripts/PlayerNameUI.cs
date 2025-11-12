@@ -14,6 +14,8 @@ public class PlayerNameUI : MonoBehaviour
     [SerializeField] private int _minNameLength = 2;
     [SerializeField] private int _maxNameLength = 15;
 
+    [SerializeField] GameObject mainCamera;
+
     private FusionConnectionManager _connectionManager;
 
     // Static property to store player name
@@ -101,6 +103,7 @@ public class PlayerNameUI : MonoBehaviour
         // Save player name
         PlayerName = playerName;
         Debug.Log($"[PlayerNameUI] Player name set to: {PlayerName}");
+        mainCamera.SetActive(false);
 
         // Hide UI panel
         if (_nameInputPanel != null)
