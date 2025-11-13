@@ -448,46 +448,11 @@ public class PlayerController : NetworkBehaviour
                     // Calculate teleport position BEFORE sending RPC
                     float targetY = _isLocalGravityInverted ? -7f : -2.5f;
 
-                    // Reset velocity to prevent flying after teleport
-                    velocity = Vector3.zero;
-
                     // Send RPC to server to update networked state AND teleport
+                    // Server will reset velocity and call RPC_StartGravityAnimation on all clients
                     RPC_ToggleGravity(_isLocalGravityInverted, targetY);
 
-                    // Start squash animation on visual child
-                    if (_visualChild != null)
-                    {
-                        StartCoroutine(SquashAnimation());
-                    }
-
-                    Debug.Log($"[PlayerController] Gravity toggled! Inverted: {_isLocalGravityInverted}, TargetY: {targetY}, Velocity reset");
-
-                    // Update target camera roll (180° flip)
-                    _targetCameraRoll = _isLocalGravityInverted ? 180f : 0f;
-                    Debug.Log($"[PlayerController] Camera roll target updated: {_targetCameraRoll}");
-
-                    // Update camera offset (invert Y when gravity is inverted)
-                    if (_cameraManager != null)
-                    {
-                        if (_isLocalGravityInverted)
-                        {
-                            // Invert Y offset
-                            _cameraManager.offset = new Vector3(
-                                _originalCameraOffset.x,
-                                -_originalCameraOffset.y,
-                                _originalCameraOffset.z
-                            );
-                        }
-                        else
-                        {
-                            // Restore original offset
-                            _cameraManager.offset = _originalCameraOffset;
-                        }
-
-                        Debug.Log($"[PlayerController] Camera offset updated: {_cameraManager.offset}");
-                    }
-
-                    Debug.Log($"[PlayerController] Local gravity toggled! Inverted: {_isLocalGravityInverted}");
+                    Debug.Log($"[PlayerController] Gravity toggle requested! Inverted: {_isLocalGravityInverted}, TargetY: {targetY}");
                 }
 
                 // Update previous state
@@ -1185,6 +1150,9 @@ public class PlayerController : NetworkBehaviour
         // Host sets the networked property (this will sync to all clients)
         IsGravityInverted = isInverted;
 
+        // Reset velocity on server to prevent flying (this will sync to all clients)
+        NetworkedVelocity = Vector3.zero;
+
         // Teleport player on server
         Vector3 newPos = transform.position;
         newPos.y = targetY;
@@ -1193,10 +1161,26 @@ public class PlayerController : NetworkBehaviour
         _controller.enabled = false;
         transform.position = newPos;
 
-        Debug.Log($"[RPC] Gravity toggled by server: {IsGravityInverted}, Teleported to Y: {targetY}");
+        Debug.Log($"[RPC] Gravity toggled by server: {IsGravityInverted}, Teleported to Y: {targetY}, Velocity reset");
 
         // Re-enable CharacterController after 0.25 seconds
         StartCoroutine(ReEnableControllerAfterDelay(0.25f));
+
+        // Notify all clients to start animation
+        RPC_StartGravityAnimation(isInverted);
+    }
+
+    // RPC to start gravity animation on all clients
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_StartGravityAnimation(bool isInverted)
+    {
+        Debug.Log($"[RPC_StartGravityAnimation] Starting animation on client, isInverted: {isInverted}");
+
+        // Start squash animation sequence
+        if (_visualChild != null)
+        {
+            StartCoroutine(GravityToggleSequence(isInverted));
+        }
     }
 
     private System.Collections.IEnumerator ReEnableControllerAfterDelay(float delay)
@@ -1207,6 +1191,43 @@ public class PlayerController : NetworkBehaviour
         {
             _controller.enabled = true;
             Debug.Log($"[ReEnableController] CharacterController re-enabled after {delay}s");
+        }
+    }
+
+    private System.Collections.IEnumerator GravityToggleSequence(bool isInverted)
+    {
+        // Phase 1: Wait for squash animation to complete
+        yield return StartCoroutine(SquashAnimation());
+
+        Debug.Log($"[GravityToggleSequence] Squash complete, now updating camera");
+
+        // Phase 2: After squash completes, update camera (only for local player)
+        if (Object.HasInputAuthority)
+        {
+            // Update target camera roll (180° flip)
+            _targetCameraRoll = isInverted ? 180f : 0f;
+            Debug.Log($"[GravityToggleSequence] Camera roll target updated: {_targetCameraRoll}");
+
+            // Update camera offset (invert Y when gravity is inverted)
+            if (_cameraManager != null)
+            {
+                if (isInverted)
+                {
+                    // Invert Y offset
+                    _cameraManager.offset = new Vector3(
+                        _originalCameraOffset.x,
+                        -_originalCameraOffset.y,
+                        _originalCameraOffset.z
+                    );
+                }
+                else
+                {
+                    // Restore original offset
+                    _cameraManager.offset = _originalCameraOffset;
+                }
+
+                Debug.Log($"[GravityToggleSequence] Camera offset updated: {_cameraManager.offset}");
+            }
         }
     }
 
