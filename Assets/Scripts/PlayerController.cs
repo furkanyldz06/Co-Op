@@ -80,11 +80,14 @@ public class PlayerController : NetworkBehaviour
     // Collider buffer for Physics.OverlapSphere (reuse to avoid allocations)
     private Collider[] _overlapBuffer = new Collider[32]; // Max 32 colliders in range
 
-    // Local gravity state (client-side only, not networked)
+    // Local gravity state (client-side only for Physics.gravity)
     private bool _isLocalGravityInverted = false;
     private float _normalGravityValue = -9.81f;
     private Vector3 _targetGravity;
     private Vector3 _currentGravity;
+
+    // Networked gravity state (so other clients can see character upside down)
+    [Networked] public NetworkBool IsGravityInverted { get; set; }
 
     // Character rotation for gravity inversion
     private Quaternion _targetCharacterRotation = Quaternion.identity;
@@ -336,7 +339,8 @@ public class PlayerController : NetworkBehaviour
             Vector3 direction = data.direction;
 
             // Invert X direction when gravity is inverted (fixes A/D controls)
-            if (_isLocalGravityInverted)
+            // Use networked state for consistency
+            if (IsGravityInverted)
             {
                 direction.x = -direction.x;
             }
@@ -391,14 +395,15 @@ public class PlayerController : NetworkBehaviour
             bool hasJumpRequest = timeSinceJumpRequest <= _jumpBufferTime;
 
             // Check if not already jumping (depends on gravity direction)
-            bool notJumping = _isLocalGravityInverted
+            // Use networked state for consistency
+            bool notJumping = IsGravityInverted
                 ? velocity.y >= -1f  // Inverted: allow jump if not moving down fast
                 : velocity.y <= 1f;   // Normal: allow jump if not moving up fast
 
             if (canJump && hasJumpRequest && notJumping)
             {
-                // Jump direction depends on gravity
-                velocity.y = _isLocalGravityInverted ? -_jumpForce : _jumpForce;
+                // Jump direction depends on gravity (use networked state)
+                velocity.y = IsGravityInverted ? -_jumpForce : _jumpForce;
 
                 _jumpRequestTime = -999f; // Consume jump request
                 _lastGroundedTime = -999f; // Prevent double jump from coyote time
@@ -408,7 +413,7 @@ public class PlayerController : NetworkBehaviour
                 IsJumping = true;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.Log($"JUMP! Ground: {_isGrounded}, CoyoteTime: {timeSinceGrounded:F3}s, BufferTime: {timeSinceJumpRequest:F3}s, Inverted: {_isLocalGravityInverted}");
+                Debug.Log($"JUMP! Ground: {_isGrounded}, CoyoteTime: {timeSinceGrounded:F3}s, BufferTime: {timeSinceJumpRequest:F3}s, Inverted: {IsGravityInverted}");
 #endif
             }
             else if (_isGrounded)
@@ -427,15 +432,13 @@ public class PlayerController : NetworkBehaviour
                 {
                     _isLocalGravityInverted = !_isLocalGravityInverted;
 
-                    // Update target gravity
+                    // Update networked state (so other clients see character upside down)
+                    IsGravityInverted = _isLocalGravityInverted;
+
+                    // Update target gravity (only affects local Physics.gravity)
                     _targetGravity = _isLocalGravityInverted
                         ? new Vector3(0, -_normalGravityValue, 0)  // Inverted (positive Y)
                         : new Vector3(0, _normalGravityValue, 0);   // Normal (negative Y)
-
-                    // Update target character rotation (180° flip on Z axis)
-                    _targetCharacterRotation = _isLocalGravityInverted
-                        ? Quaternion.Euler(0, 0, 180)  // Upside down
-                        : Quaternion.identity;          // Normal
 
                     // Update target camera roll (180° flip)
                     _targetCameraRoll = _isLocalGravityInverted ? 180f : 0f;
@@ -468,6 +471,11 @@ public class PlayerController : NetworkBehaviour
                 _wasQKeyPressed = isQKeyPressed;
             }
 
+            // Update target character rotation based on networked state (for all clients)
+            _targetCharacterRotation = IsGravityInverted
+                ? Quaternion.Euler(0, 0, 180)  // Upside down
+                : Quaternion.identity;          // Normal
+
             // Smoothly interpolate to target gravity (only for local player)
             if (Object.HasInputAuthority)
             {
@@ -476,11 +484,11 @@ public class PlayerController : NetworkBehaviour
             }
 
             // Apply gravity to character
-            // Use the current gravity direction (inverted or normal)
-            float characterGravity = _isLocalGravityInverted ? -_gravity : _gravity;
+            // Use the networked gravity state for consistency across all clients
+            float characterGravity = IsGravityInverted ? -_gravity : _gravity;
 
             // Ground stick logic - depends on gravity direction
-            if (_isLocalGravityInverted)
+            if (IsGravityInverted)
             {
                 // Inverted gravity - stick to ceiling
                 if (_isGrounded && velocity.y > 0)
