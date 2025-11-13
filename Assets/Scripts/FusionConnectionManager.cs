@@ -116,6 +116,9 @@ public class FusionConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 
             // Drop cube input (F key)
             data.isDroppingCube = keyboard.fKey.isPressed;
+
+            // Gravity toggle input (Q key) - use isPressed for better reliability
+            data.isTogglingGravity = keyboard.qKey.isPressed;
         }
 
         input.Set(data);
@@ -146,5 +149,6 @@ public struct NetworkInputData : INetworkInput
     public NetworkBool isJumping;
     public NetworkBool isPickingUp; // E key for pickup
     public NetworkBool isDroppingCube; // F key for dropping cube
+    public NetworkBool isTogglingGravity; // Q key for gravity toggle
 }
 

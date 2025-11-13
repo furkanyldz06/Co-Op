@@ -76,7 +76,14 @@ namespace GameOrganization
             if (direction.sqrMagnitude > 0.001f) // Avoid zero-length vector
             {
                 Quaternion rotation = Quaternion.LookRotation(direction);
-                transform.rotation = Quaternion.Slerp(transform.rotation, rotation, Time.deltaTime * cameraManager.rotSpeed);
+
+                // Preserve Z rotation (roll) - it's controlled by PlayerController for gravity inversion
+                Vector3 currentEuler = transform.rotation.eulerAngles;
+                Vector3 targetEuler = rotation.eulerAngles;
+                targetEuler.z = currentEuler.z; // Keep current roll
+
+                Quaternion finalRotation = Quaternion.Euler(targetEuler);
+                transform.rotation = Quaternion.Slerp(transform.rotation, finalRotation, Time.deltaTime * cameraManager.rotSpeed);
             }
         }
 

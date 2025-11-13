@@ -24,6 +24,7 @@ public class PlayerController : NetworkBehaviour
 
     [Header("Camera")]
     [SerializeField] private GameObject _camera;
+    [SerializeField] private float _cameraRotationSpeed = 2f; // Speed of camera rotation when gravity inverts
 
     [Header("Player Name")]
     [SerializeField] private TMP_Text _nameText;
@@ -78,6 +79,27 @@ public class PlayerController : NetworkBehaviour
 
     // Collider buffer for Physics.OverlapSphere (reuse to avoid allocations)
     private Collider[] _overlapBuffer = new Collider[32]; // Max 32 colliders in range
+
+    // Local gravity state (client-side only, not networked)
+    private bool _isLocalGravityInverted = false;
+    private float _normalGravityValue = -9.81f;
+    private Vector3 _targetGravity;
+    private Vector3 _currentGravity;
+
+    // Character rotation for gravity inversion
+    private Quaternion _targetCharacterRotation = Quaternion.identity;
+    private Quaternion _currentCharacterRotation = Quaternion.identity;
+
+    // Camera rotation for gravity inversion
+    private float _targetCameraRoll = 0f;
+    private float _currentCameraRoll = 0f;
+    // private float _cameraRotationSpeed = 2f; // Speed of camera roll rotation
+    private Transform _cameraTransform;
+    private GameOrganization.CameraManager _cameraManager;
+    private Vector3 _originalCameraOffset;
+
+    // Q key state tracking (to detect press, not hold)
+    private bool _wasQKeyPressed = false;
 
     private void Awake()
     {
@@ -184,6 +206,15 @@ public class PlayerController : NetworkBehaviour
 
     public override void Spawned()
     {
+        // Initialize local gravity (only for local player)
+        if (Object.HasInputAuthority)
+        {
+            _normalGravityValue = -9.81f;
+            _currentGravity = new Vector3(0, _normalGravityValue, 0);
+            _targetGravity = _currentGravity;
+            _isLocalGravityInverted = false;
+        }
+
         // Initialize CharacterController
         if (_controller != null)
         {
@@ -231,6 +262,9 @@ public class PlayerController : NetworkBehaviour
         _camera.transform.parent = null;
         _camera.SetActive(true);
 
+        // Cache camera transform for gravity rotation
+        _cameraTransform = _camera.transform;
+
         // Set MainCamera tag so Camera.main finds this camera
         Camera cam = _camera.GetComponentInChildren<Camera>();
         if (cam != null)
@@ -238,10 +272,13 @@ public class PlayerController : NetworkBehaviour
             cam.tag = "MainCamera";
         }
 
-        var cameraManager = _camera.GetComponent<GameOrganization.CameraManager>();
-        if (cameraManager != null)
+        _cameraManager = _camera.GetComponent<GameOrganization.CameraManager>();
+        if (_cameraManager != null)
         {
-            cameraManager.followObj = transform;
+            _cameraManager.followObj = transform;
+
+            // Store original camera offset
+            _originalCameraOffset = _cameraManager.offset;
 
             var cameraMovement = _camera.GetComponent<GameOrganization.CameraMovement>();
             cameraMovement?.firstLook();
@@ -297,6 +334,13 @@ public class PlayerController : NetworkBehaviour
             }
 
             Vector3 direction = data.direction;
+
+            // Invert X direction when gravity is inverted (fixes A/D controls)
+            if (_isLocalGravityInverted)
+            {
+                direction.x = -direction.x;
+            }
+
             // Use sqrMagnitude for better performance (avoids sqrt calculation)
             bool isMoving = direction.sqrMagnitude > MOVEMENT_THRESHOLD;
 
@@ -308,7 +352,9 @@ public class PlayerController : NetworkBehaviour
                 direction.Normalize();
 
                 // Rotate towards movement direction (smooth rotation)
-                Quaternion targetRotation = Quaternion.LookRotation(direction);
+                // Combine movement rotation with gravity flip rotation
+                Quaternion movementRotation = Quaternion.LookRotation(direction);
+                Quaternion targetRotation = movementRotation * _targetCharacterRotation;
                 transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
 
                 // Calculate speed with sprint multiplier
@@ -322,6 +368,14 @@ public class PlayerController : NetworkBehaviour
             {
                 velocity.x = 0;
                 velocity.z = 0;
+
+                // Even when not moving, apply gravity rotation smoothly
+                if (Object.HasInputAuthority)
+                {
+                    Quaternion currentYRotation = Quaternion.Euler(0, transform.rotation.eulerAngles.y, 0);
+                    Quaternion targetRotation = currentYRotation * _targetCharacterRotation;
+                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
+                }
             }
 
             // Jump logic with coyote time AND jump buffering
@@ -332,14 +386,20 @@ public class PlayerController : NetworkBehaviour
             // Can jump if:
             // 1. Currently grounded OR within coyote time after leaving ground
             // 2. Jump was requested recently (within buffer time)
-            // 3. Not already jumping upwards
+            // 3. Not already jumping in the current gravity direction
             bool canJump = (_isGrounded || timeSinceGrounded <= _coyoteTime);
             bool hasJumpRequest = timeSinceJumpRequest <= _jumpBufferTime;
-            bool notJumpingUp = velocity.y <= 1f; // Allow jump if velocity is low
 
-            if (canJump && hasJumpRequest && notJumpingUp)
+            // Check if not already jumping (depends on gravity direction)
+            bool notJumping = _isLocalGravityInverted
+                ? velocity.y >= -1f  // Inverted: allow jump if not moving down fast
+                : velocity.y <= 1f;   // Normal: allow jump if not moving up fast
+
+            if (canJump && hasJumpRequest && notJumping)
             {
-                velocity.y = _jumpForce;
+                // Jump direction depends on gravity
+                velocity.y = _isLocalGravityInverted ? -_jumpForce : _jumpForce;
+
                 _jumpRequestTime = -999f; // Consume jump request
                 _lastGroundedTime = -999f; // Prevent double jump from coyote time
 
@@ -348,7 +408,7 @@ public class PlayerController : NetworkBehaviour
                 IsJumping = true;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.Log($"JUMP! Ground: {_isGrounded}, CoyoteTime: {timeSinceGrounded:F3}s, BufferTime: {timeSinceJumpRequest:F3}s");
+                Debug.Log($"JUMP! Ground: {_isGrounded}, CoyoteTime: {timeSinceGrounded:F3}s, BufferTime: {timeSinceJumpRequest:F3}s, Inverted: {_isLocalGravityInverted}");
 #endif
             }
             else if (_isGrounded)
@@ -356,14 +416,93 @@ public class PlayerController : NetworkBehaviour
                 IsJumping = false;
             }
 
-            // Apply gravity
-            if (_isGrounded && velocity.y < 0)
+            // Handle local gravity toggle (only for local player)
+            // Detect Q key press (not hold) - toggle only on press
+            if (Object.HasInputAuthority)
             {
-                velocity.y = GROUND_STICK_FORCE;
+                bool isQKeyPressed = data.isTogglingGravity;
+
+                // Toggle only when Q is pressed (transition from not pressed to pressed)
+                if (isQKeyPressed && !_wasQKeyPressed)
+                {
+                    _isLocalGravityInverted = !_isLocalGravityInverted;
+
+                    // Update target gravity
+                    _targetGravity = _isLocalGravityInverted
+                        ? new Vector3(0, -_normalGravityValue, 0)  // Inverted (positive Y)
+                        : new Vector3(0, _normalGravityValue, 0);   // Normal (negative Y)
+
+                    // Update target character rotation (180° flip on Z axis)
+                    _targetCharacterRotation = _isLocalGravityInverted
+                        ? Quaternion.Euler(0, 0, 180)  // Upside down
+                        : Quaternion.identity;          // Normal
+
+                    // Update target camera roll (180° flip)
+                    _targetCameraRoll = _isLocalGravityInverted ? 180f : 0f;
+
+                    // Update camera offset (invert Y when gravity is inverted)
+                    if (_cameraManager != null)
+                    {
+                        if (_isLocalGravityInverted)
+                        {
+                            // Invert Y offset
+                            _cameraManager.offset = new Vector3(
+                                _originalCameraOffset.x,
+                                -_originalCameraOffset.y,
+                                _originalCameraOffset.z
+                            );
+                        }
+                        else
+                        {
+                            // Restore original offset
+                            _cameraManager.offset = _originalCameraOffset;
+                        }
+
+                        Debug.Log($"[PlayerController] Camera offset updated: {_cameraManager.offset}");
+                    }
+
+                    Debug.Log($"[PlayerController] Local gravity toggled! Inverted: {_isLocalGravityInverted}");
+                }
+
+                // Update previous state
+                _wasQKeyPressed = isQKeyPressed;
+            }
+
+            // Smoothly interpolate to target gravity (only for local player)
+            if (Object.HasInputAuthority)
+            {
+                _currentGravity = Vector3.Lerp(_currentGravity, _targetGravity, 2f * Runner.DeltaTime);
+                Physics.gravity = _currentGravity;
+            }
+
+            // Apply gravity to character
+            // Use the current gravity direction (inverted or normal)
+            float characterGravity = _isLocalGravityInverted ? -_gravity : _gravity;
+
+            // Ground stick logic - depends on gravity direction
+            if (_isLocalGravityInverted)
+            {
+                // Inverted gravity - stick to ceiling
+                if (_isGrounded && velocity.y > 0)
+                {
+                    velocity.y = -GROUND_STICK_FORCE; // Reverse stick force
+                }
+                else
+                {
+                    velocity.y += characterGravity * Runner.DeltaTime;
+                }
             }
             else
             {
-                velocity.y += _gravity * Runner.DeltaTime;
+                // Normal gravity - stick to ground
+                if (_isGrounded && velocity.y < 0)
+                {
+                    velocity.y = GROUND_STICK_FORCE;
+                }
+                else
+                {
+                    velocity.y += characterGravity * Runner.DeltaTime;
+                }
             }
 
             // Move character
@@ -804,6 +943,17 @@ public class PlayerController : NetworkBehaviour
 
     public override void Render()
     {
+        // Update camera rotation for gravity inversion (only for local player)
+        if (Object.HasInputAuthority && _cameraTransform != null)
+        {
+            // Smoothly interpolate camera roll
+            _currentCameraRoll = Mathf.Lerp(_currentCameraRoll, _targetCameraRoll, _cameraRotationSpeed * Time.deltaTime);
+
+            // Apply roll rotation to camera (preserve existing rotation)
+            Vector3 currentEuler = _cameraTransform.rotation.eulerAngles;
+            _cameraTransform.rotation = Quaternion.Euler(currentEuler.x, currentEuler.y, _currentCameraRoll);
+        }
+
         // Update animator every frame (runs on all clients)
         if (_animator != null)
         {
@@ -955,5 +1105,26 @@ public class PlayerController : NetworkBehaviour
         // Host sets the networked property
         PlayerName = name;
         Debug.Log($"[RPC] Player name set by host: {PlayerName}");
+    }
+
+    private void OnGUI()
+    {
+        // Only show for local player
+        if (!Object.HasInputAuthority) return;
+
+        // Show gravity state on screen
+        GUIStyle style = new GUIStyle();
+        style.fontSize = 24;
+        style.normal.textColor = _isLocalGravityInverted ? Color.red : Color.green;
+        style.fontStyle = FontStyle.Bold;
+
+        string gravityText = _isLocalGravityInverted ? "⬆️ GRAVITY: INVERTED" : "⬇️ GRAVITY: NORMAL";
+        GUI.Label(new Rect(10, 10, 400, 30), gravityText, style);
+
+        // Instructions
+        GUIStyle instructionStyle = new GUIStyle();
+        instructionStyle.fontSize = 16;
+        instructionStyle.normal.textColor = Color.white;
+        GUI.Label(new Rect(10, 40, 400, 25), "Press Q to toggle your world's gravity", instructionStyle);
     }
 }
