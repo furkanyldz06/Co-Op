@@ -1003,6 +1003,11 @@ public class PlayerController : NetworkBehaviour
             // Apply to visual child: Y rotation (movement) + gravity rotation (X flip)
             _visualChild.rotation = yRotation * _currentCharacterRotation;
 
+            // Update local Y position based on gravity state
+            Vector3 localPos = _visualChild.localPosition;
+            localPos.y = IsGravityInverted ? 1f : 0f;
+            _visualChild.localPosition = localPos;
+
             // Debug log to check if this is running
             if (Time.frameCount % 60 == 0) // Log every 60 frames
             {
