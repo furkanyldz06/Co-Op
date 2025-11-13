@@ -27,6 +27,10 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private GameObject _camera;
     [SerializeField] private float _cameraRotationSpeed = 2f; // Speed of camera rotation when gravity inverts
 
+    [Header("Gravity Toggle Animation")]
+    [SerializeField] private float _squashDuration = 0.2f; // Duration to squash to 0
+    [SerializeField] private float _stretchDuration = 0.8f; // Duration to stretch back to 1
+
     [Header("Player Name")]
     [SerializeField] private TMP_Text _nameText;
     [SerializeField] private float _nameYOffset = 2.5f;
@@ -449,6 +453,12 @@ public class PlayerController : NetworkBehaviour
 
                     // Send RPC to server to update networked state AND teleport
                     RPC_ToggleGravity(_isLocalGravityInverted, targetY);
+
+                    // Start squash animation on visual child
+                    if (_visualChild != null)
+                    {
+                        StartCoroutine(SquashAnimation());
+                    }
 
                     Debug.Log($"[PlayerController] Gravity toggled! Inverted: {_isLocalGravityInverted}, TargetY: {targetY}, Velocity reset");
 
@@ -1198,6 +1208,52 @@ public class PlayerController : NetworkBehaviour
             _controller.enabled = true;
             Debug.Log($"[ReEnableController] CharacterController re-enabled after {delay}s");
         }
+    }
+
+    private System.Collections.IEnumerator SquashAnimation()
+    {
+        if (_visualChild == null) yield break;
+
+        Vector3 originalScale = _visualChild.localScale;
+        float elapsedTime = 0f;
+
+        // Phase 1: Scale Y to 0 in _squashDuration seconds
+        while (elapsedTime < _squashDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = elapsedTime / _squashDuration;
+
+            Vector3 newScale = originalScale;
+            newScale.y = Mathf.Lerp(originalScale.y, 0f, t);
+            _visualChild.localScale = newScale;
+
+            yield return null;
+        }
+
+        // Ensure Y is exactly 0
+        Vector3 squashedScale = originalScale;
+        squashedScale.y = 0f;
+        _visualChild.localScale = squashedScale;
+
+        elapsedTime = 0f;
+
+        // Phase 2: Scale Y back to 1 in _stretchDuration seconds
+        while (elapsedTime < _stretchDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = elapsedTime / _stretchDuration;
+
+            Vector3 newScale = originalScale;
+            newScale.y = Mathf.Lerp(0f, originalScale.y, t);
+            _visualChild.localScale = newScale;
+
+            yield return null;
+        }
+
+        // Ensure Y is back to original
+        _visualChild.localScale = originalScale;
+
+        Debug.Log($"[SquashAnimation] Animation complete, scale reset to {originalScale}");
     }
 
     private void OnGUI()
