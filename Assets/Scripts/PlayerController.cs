@@ -1226,7 +1226,7 @@ public class PlayerController : NetworkBehaviour
         
         StartCoroutine(SquashAnimation());
 
-        yield return new WaitForSeconds(0.1f);
+        yield return new WaitForSeconds(0.3f);
 
         Debug.Log($"[GravityToggleSequence] Squash complete, now updating camera");
 
