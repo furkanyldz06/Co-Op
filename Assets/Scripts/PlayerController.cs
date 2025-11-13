@@ -1223,7 +1223,10 @@ public class PlayerController : NetworkBehaviour
     private System.Collections.IEnumerator GravityToggleSequence(bool isInverted)
     {
         // Phase 1: Wait for squash animation to complete
-        yield return StartCoroutine(SquashAnimation());
+        
+        StartCoroutine(SquashAnimation());
+
+        yield return new WaitForSeconds(0.1f);
 
         Debug.Log($"[GravityToggleSequence] Squash complete, now updating camera");
 
