@@ -109,6 +109,9 @@ public class PlayerController : NetworkBehaviour
     // Q key state tracking (to detect press, not hold)
     private bool _wasQKeyPressed = false;
 
+    // Teleport flag to prevent velocity override during teleport
+    private bool _isTeleporting = false;
+
     private void Awake()
     {
         _renderer = GetComponent<MeshRenderer>();
@@ -499,8 +502,11 @@ public class PlayerController : NetworkBehaviour
                 _controller.Move(velocity * Runner.DeltaTime);
             }
 
-            // Update networked state
-            NetworkedVelocity = velocity;
+            // Update networked state (but don't override velocity during teleport)
+            if (!_isTeleporting)
+            {
+                NetworkedVelocity = velocity;
+            }
             IsWalking = isMoving;
             IsRunning = isMoving && data.isSprinting;
 
@@ -1150,6 +1156,9 @@ public class PlayerController : NetworkBehaviour
         // Host sets the networked property (this will sync to all clients)
         IsGravityInverted = isInverted;
 
+        // Set teleporting flag to prevent velocity override
+        _isTeleporting = true;
+
         // Reset velocity on server to prevent flying (this will sync to all clients)
         NetworkedVelocity = Vector3.zero;
 
@@ -1161,7 +1170,7 @@ public class PlayerController : NetworkBehaviour
         _controller.enabled = false;
         transform.position = newPos;
 
-        Debug.Log($"[RPC] Gravity toggled by server: {IsGravityInverted}, Teleported to Y: {targetY}, Velocity reset");
+        Debug.Log($"[RPC] Gravity toggled by server: {IsGravityInverted}, Teleported to Y: {targetY}, Velocity reset, Teleporting flag set");
 
         // Re-enable CharacterController after 0.25 seconds
         StartCoroutine(ReEnableControllerAfterDelay(0.25f));
@@ -1175,6 +1184,13 @@ public class PlayerController : NetworkBehaviour
     private void RPC_StartGravityAnimation(bool isInverted)
     {
         Debug.Log($"[RPC_StartGravityAnimation] Starting animation on client, isInverted: {isInverted}");
+
+        // Set teleporting flag on all clients
+        _isTeleporting = true;
+
+        // Force velocity to zero on all clients
+        NetworkedVelocity = Vector3.zero;
+        Debug.Log($"[RPC_StartGravityAnimation] Velocity reset to zero on client, Teleporting flag set");
 
         // Start squash animation sequence
         if (_visualChild != null)
@@ -1190,7 +1206,17 @@ public class PlayerController : NetworkBehaviour
         if (_controller != null)
         {
             _controller.enabled = true;
-            Debug.Log($"[ReEnableController] CharacterController re-enabled after {delay}s");
+
+            // Force velocity reset again after re-enabling controller
+            NetworkedVelocity = Vector3.zero;
+
+            // Wait one more frame to ensure velocity is synced
+            yield return null;
+
+            // Clear teleporting flag to allow normal velocity updates
+            _isTeleporting = false;
+
+            Debug.Log($"[ReEnableController] CharacterController re-enabled after {delay}s, velocity reset again, Teleporting flag cleared");
         }
     }
 
