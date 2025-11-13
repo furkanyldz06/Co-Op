@@ -167,6 +167,10 @@ public class PlayerController : NetworkBehaviour
 
     private bool CheckGrounded()
     {
+        // Determine ground check direction based on gravity state
+        Vector3 groundDirection = IsGravityInverted ? Vector3.up : Vector3.down;
+        Vector3 oppositeDirection = IsGravityInverted ? Vector3.down : Vector3.up;
+
         // Early return if CharacterController says grounded
         if (_controller.isGrounded)
         {
@@ -177,17 +181,17 @@ public class PlayerController : NetworkBehaviour
         Vector3 center = transform.position + _controller.center;
         float radius = _controller.radius * 0.9f;
 
-        if (Physics.SphereCast(center, radius, Vector3.down, out RaycastHit hit, _groundCheckDistance, _groundLayer))
+        if (Physics.SphereCast(center, radius, groundDirection, out RaycastHit hit, _groundCheckDistance, _groundLayer))
         {
             return true;
         }
 
-        // Method 3: Multiple raycasts from bottom (for edges)
-        Vector3 bottom = transform.position + Vector3.up * 0.1f;
+        // Method 3: Multiple raycasts from bottom/top (for edges)
+        Vector3 checkOrigin = transform.position + oppositeDirection * 0.1f;
         float checkRadius = _controller.radius;
 
         // Center raycast
-        if (Physics.Raycast(bottom, Vector3.down, _groundCheckDistance, _groundLayer))
+        if (Physics.Raycast(checkOrigin, groundDirection, _groundCheckDistance, _groundLayer))
         {
             return true;
         }
@@ -196,20 +200,20 @@ public class PlayerController : NetworkBehaviour
         for (int i = 0; i < _groundCheckOffsets.Length; i++)
         {
             Vector3 offset = _groundCheckOffsets[i] * checkRadius;
-            if (Physics.Raycast(bottom + offset, Vector3.down, _groundCheckDistance, _groundLayer))
+            if (Physics.Raycast(checkOrigin + offset, groundDirection, _groundCheckDistance, _groundLayer))
             {
                 return true;
             }
 
 #if UNITY_EDITOR
             // Visual debug - draw raycasts
-            Debug.DrawRay(bottom + offset, Vector3.down * _groundCheckDistance, Color.red);
+            Debug.DrawRay(checkOrigin + offset, groundDirection * _groundCheckDistance, Color.red);
 #endif
         }
 
 #if UNITY_EDITOR
         // Visual debug - center raycast
-        Debug.DrawRay(bottom, Vector3.down * _groundCheckDistance, Color.red);
+        // Debug.DrawRay(bottom, Vector3.down * _groundCheckDistance, Color.red);
 #endif
 
         return false;
