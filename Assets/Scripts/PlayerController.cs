@@ -21,6 +21,7 @@ public class PlayerController : NetworkBehaviour
 
     [Header("Animation")]
     [SerializeField] private Animator _animator;
+    private Transform _visualChild; // First child (visual model) to rotate
 
     [Header("Camera")]
     [SerializeField] private GameObject _camera;
@@ -209,6 +210,17 @@ public class PlayerController : NetworkBehaviour
 
     public override void Spawned()
     {
+        // Cache first child (visual model)
+        if (transform.childCount > 0)
+        {
+            _visualChild = transform.GetChild(0);
+            Debug.Log($"[PlayerController] Visual child cached: {_visualChild.name}");
+        }
+        else
+        {
+            Debug.LogError($"[PlayerController] No child found! Player must have a visual child.");
+        }
+
         // Initialize local gravity (only for local player)
         if (Object.HasInputAuthority)
         {
@@ -265,14 +277,20 @@ public class PlayerController : NetworkBehaviour
         _camera.transform.parent = null;
         _camera.SetActive(true);
 
-        // Cache camera transform for gravity rotation
-        _cameraTransform = _camera.transform;
-
         // Set MainCamera tag so Camera.main finds this camera
         Camera cam = _camera.GetComponentInChildren<Camera>();
         if (cam != null)
         {
             cam.tag = "MainCamera";
+            // Cache the actual Camera's transform for gravity rotation
+            _cameraTransform = cam.transform;
+            Debug.Log($"[SetupLocalCamera] Camera transform cached: {_cameraTransform.name}");
+        }
+        else
+        {
+            // Fallback to parent if no Camera component found
+            _cameraTransform = _camera.transform;
+            Debug.LogWarning($"[SetupLocalCamera] No Camera component found, using parent transform");
         }
 
         _cameraManager = _camera.GetComponent<GameOrganization.CameraManager>();
@@ -355,11 +373,16 @@ public class PlayerController : NetworkBehaviour
             {
                 direction.Normalize();
 
-                // Rotate towards movement direction (smooth rotation)
-                // Combine movement rotation with gravity flip rotation
+                // Rotate towards movement direction (only Y axis - gravity rotation handled in Render())
                 Quaternion movementRotation = Quaternion.LookRotation(direction);
-                Quaternion targetRotation = movementRotation * _targetCharacterRotation;
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
+                float targetYAngle = movementRotation.eulerAngles.y;
+
+                // Get current rotation and only update Y, preserve X and Z
+                Vector3 currentEuler = transform.rotation.eulerAngles;
+                float newYAngle = Mathf.LerpAngle(currentEuler.y, targetYAngle, _rotationSpeed * Runner.DeltaTime);
+
+                // Apply new Y rotation while preserving X and Z (gravity rotation)
+                transform.rotation = Quaternion.Euler(currentEuler.x, newYAngle, currentEuler.z);
 
                 // Calculate speed with sprint multiplier
                 float currentSpeed = data.isSprinting ? _moveSpeed * _sprintMultiplier : _moveSpeed;
@@ -372,14 +395,6 @@ public class PlayerController : NetworkBehaviour
             {
                 velocity.x = 0;
                 velocity.z = 0;
-
-                // Even when not moving, apply gravity rotation smoothly
-                if (Object.HasInputAuthority)
-                {
-                    Quaternion currentYRotation = Quaternion.Euler(0, transform.rotation.eulerAngles.y, 0);
-                    Quaternion targetRotation = currentYRotation * _targetCharacterRotation;
-                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _rotationSpeed * Runner.DeltaTime);
-                }
             }
 
             // Jump logic with coyote time AND jump buffering
@@ -432,8 +447,8 @@ public class PlayerController : NetworkBehaviour
                 {
                     _isLocalGravityInverted = !_isLocalGravityInverted;
 
-                    // Update networked state (so other clients see character upside down)
-                    IsGravityInverted = _isLocalGravityInverted;
+                    // Send RPC to server to update networked state
+                    RPC_ToggleGravity(_isLocalGravityInverted);
 
                     // Update target gravity (only affects local Physics.gravity)
                     _targetGravity = _isLocalGravityInverted
@@ -442,6 +457,7 @@ public class PlayerController : NetworkBehaviour
 
                     // Update target camera roll (180° flip)
                     _targetCameraRoll = _isLocalGravityInverted ? 180f : 0f;
+                    Debug.Log($"[PlayerController] Camera roll target updated: {_targetCameraRoll}");
 
                     // Update camera offset (invert Y when gravity is inverted)
                     if (_cameraManager != null)
@@ -470,11 +486,6 @@ public class PlayerController : NetworkBehaviour
                 // Update previous state
                 _wasQKeyPressed = isQKeyPressed;
             }
-
-            // Update target character rotation based on networked state (for all clients)
-            _targetCharacterRotation = IsGravityInverted
-                ? Quaternion.Euler(0, 0, 180)  // Upside down
-                : Quaternion.identity;          // Normal
 
             // Smoothly interpolate to target gravity (only for local player)
             if (Object.HasInputAuthority)
@@ -960,6 +971,46 @@ public class PlayerController : NetworkBehaviour
             // Apply roll rotation to camera (preserve existing rotation)
             Vector3 currentEuler = _cameraTransform.rotation.eulerAngles;
             _cameraTransform.rotation = Quaternion.Euler(currentEuler.x, currentEuler.y, _currentCameraRoll);
+
+            // Debug log
+            if (Time.frameCount % 60 == 0)
+            {
+                Debug.Log($"[Render] Camera - Target: {_targetCameraRoll}, Current: {_currentCameraRoll}, Final: {_cameraTransform.rotation.eulerAngles.z}");
+            }
+        }
+
+        // Update target character rotation based on networked state (runs on ALL clients)
+        // This ensures remote players see the character upside down
+        _targetCharacterRotation = IsGravityInverted
+            ? Quaternion.Euler(180, 0, 0)  // Upside down (flip on X axis)
+            : Quaternion.identity;          // Normal
+
+        // Smoothly interpolate to target rotation
+        _currentCharacterRotation = Quaternion.Slerp(_currentCharacterRotation, _targetCharacterRotation, _rotationSpeed * Time.deltaTime);
+
+        // Apply gravity rotation to FIRST CHILD (visual model)
+        if (_visualChild != null)
+        {
+            // Get current Y rotation from root (movement direction)
+            Vector3 rootEuler = transform.rotation.eulerAngles;
+            float yAngle = rootEuler.y;
+
+            // When gravity is inverted, flip Y rotation 180 degrees (face opposite direction)
+            if (IsGravityInverted)
+            {
+                yAngle += 180f;
+            }
+
+            Quaternion yRotation = Quaternion.Euler(0, yAngle, 0);
+
+            // Apply to visual child: Y rotation (movement) + gravity rotation (X flip)
+            _visualChild.rotation = yRotation * _currentCharacterRotation;
+
+            // Debug log to check if this is running
+            if (Time.frameCount % 60 == 0) // Log every 60 frames
+            {
+                Debug.Log($"[Render] Player {Object.InputAuthority} - IsGravityInverted: {IsGravityInverted}, YAngle: {yAngle}, ChildRot: {_visualChild.rotation.eulerAngles}");
+            }
         }
 
         // Update animator every frame (runs on all clients)
@@ -1113,6 +1164,15 @@ public class PlayerController : NetworkBehaviour
         // Host sets the networked property
         PlayerName = name;
         Debug.Log($"[RPC] Player name set by host: {PlayerName}");
+    }
+
+    // RPC to toggle gravity (called by client, executed on host, synced to all)
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_ToggleGravity(bool isInverted)
+    {
+        // Host sets the networked property (this will sync to all clients)
+        IsGravityInverted = isInverted;
+        Debug.Log($"[RPC] Gravity toggled by server: {IsGravityInverted}");
     }
 
     private void OnGUI()

@@ -184,8 +184,8 @@ namespace ShadowMeter
             if (mySlider)
                 mySlider.value = smoothedShadowMeterValue;
             
-            if (printResult)
-                print("Shadow Meter = " + smoothedShadowMeterValue);
+            // if (printResult)
+            //     print("Shadow Meter = " + smoothedShadowMeterValue);
         }
 
         //This function is reponsible for drawing Gizmos in-Editor
