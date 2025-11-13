@@ -221,14 +221,8 @@ public class PlayerController : NetworkBehaviour
             Debug.LogError($"[PlayerController] No child found! Player must have a visual child.");
         }
 
-        // Initialize local gravity (only for local player)
-        if (Object.HasInputAuthority)
-        {
-            _normalGravityValue = -9.81f;
-            _currentGravity = new Vector3(0, _normalGravityValue, 0);
-            _targetGravity = _currentGravity;
-            _isLocalGravityInverted = false;
-        }
+        // Initialize gravity state
+        _isLocalGravityInverted = false;
 
         // Initialize CharacterController
         if (_controller != null)
@@ -447,15 +441,16 @@ public class PlayerController : NetworkBehaviour
                 {
                     _isLocalGravityInverted = !_isLocalGravityInverted;
 
-                    // Send RPC to server to update networked state
-                    RPC_ToggleGravity(_isLocalGravityInverted);
+                    // Calculate teleport position BEFORE sending RPC
+                    float targetY = _isLocalGravityInverted ? -7f : -2.5f;
 
-                    // Update target gravity (only affects local Physics.gravity)
-                    _targetGravity = _isLocalGravityInverted
-                        ? new Vector3(0, -_normalGravityValue, 0)  // Inverted (positive Y)
-                        : new Vector3(0, _normalGravityValue, 0);   // Normal (negative Y)
+                    // Reset velocity to prevent flying after teleport
+                    velocity = Vector3.zero;
 
-                    Debug.Log($"[PlayerController] Gravity toggled! Inverted: {_isLocalGravityInverted}, TargetGravity: {_targetGravity}, NormalValue: {_normalGravityValue}");
+                    // Send RPC to server to update networked state AND teleport
+                    RPC_ToggleGravity(_isLocalGravityInverted, targetY);
+
+                    Debug.Log($"[PlayerController] Gravity toggled! Inverted: {_isLocalGravityInverted}, TargetY: {targetY}, Velocity reset");
 
                     // Update target camera roll (180° flip)
                     _targetCameraRoll = _isLocalGravityInverted ? 180f : 0f;
@@ -489,18 +484,9 @@ public class PlayerController : NetworkBehaviour
                 _wasQKeyPressed = isQKeyPressed;
             }
 
-            // Smoothly interpolate to target gravity (only for local player)
-            if (Object.HasInputAuthority)
-            {
-                _currentGravity = Vector3.Lerp(_currentGravity, _targetGravity, 2f * Runner.DeltaTime);
-                Physics.gravity = _currentGravity;
-
-                // Debug log every 60 frames
-                if (Time.frameCount % 60 == 0)
-                {
-                    Debug.Log($"[FixedUpdateNetwork] Physics.gravity: {Physics.gravity}, Target: {_targetGravity}, Current: {_currentGravity}");
-                }
-            }
+            // NOTE: We don't change Physics.gravity anymore!
+            // Each player uses their own gravity direction via characterGravity (line 507)
+            // This allows multiple players to have different gravity directions simultaneously
 
             // Apply gravity to character
             // Use the networked gravity state for consistency across all clients
@@ -532,8 +518,11 @@ public class PlayerController : NetworkBehaviour
                 }
             }
 
-            // Move character
-            _controller.Move(velocity * Runner.DeltaTime);
+            // Move character (only if controller is enabled)
+            if (_controller.enabled)
+            {
+                _controller.Move(velocity * Runner.DeltaTime);
+            }
 
             // Update networked state
             NetworkedVelocity = velocity;
@@ -1176,11 +1165,34 @@ public class PlayerController : NetworkBehaviour
 
     // RPC to toggle gravity (called by client, executed on host, synced to all)
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    private void RPC_ToggleGravity(bool isInverted)
+    private void RPC_ToggleGravity(bool isInverted, float targetY)
     {
         // Host sets the networked property (this will sync to all clients)
         IsGravityInverted = isInverted;
-        Debug.Log($"[RPC] Gravity toggled by server: {IsGravityInverted}");
+
+        // Teleport player on server
+        Vector3 newPos = transform.position;
+        newPos.y = targetY;
+
+        // Disable CharacterController and teleport
+        _controller.enabled = false;
+        transform.position = newPos;
+
+        Debug.Log($"[RPC] Gravity toggled by server: {IsGravityInverted}, Teleported to Y: {targetY}");
+
+        // Re-enable CharacterController after 0.25 seconds
+        StartCoroutine(ReEnableControllerAfterDelay(0.25f));
+    }
+
+    private System.Collections.IEnumerator ReEnableControllerAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (_controller != null)
+        {
+            _controller.enabled = true;
+            Debug.Log($"[ReEnableController] CharacterController re-enabled after {delay}s");
+        }
     }
 
     private void OnGUI()
