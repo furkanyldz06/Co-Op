@@ -455,6 +455,8 @@ public class PlayerController : NetworkBehaviour
                         ? new Vector3(0, -_normalGravityValue, 0)  // Inverted (positive Y)
                         : new Vector3(0, _normalGravityValue, 0);   // Normal (negative Y)
 
+                    Debug.Log($"[PlayerController] Gravity toggled! Inverted: {_isLocalGravityInverted}, TargetGravity: {_targetGravity}, NormalValue: {_normalGravityValue}");
+
                     // Update target camera roll (180° flip)
                     _targetCameraRoll = _isLocalGravityInverted ? 180f : 0f;
                     Debug.Log($"[PlayerController] Camera roll target updated: {_targetCameraRoll}");
@@ -492,6 +494,12 @@ public class PlayerController : NetworkBehaviour
             {
                 _currentGravity = Vector3.Lerp(_currentGravity, _targetGravity, 2f * Runner.DeltaTime);
                 Physics.gravity = _currentGravity;
+
+                // Debug log every 60 frames
+                if (Time.frameCount % 60 == 0)
+                {
+                    Debug.Log($"[FixedUpdateNetwork] Physics.gravity: {Physics.gravity}, Target: {_targetGravity}, Current: {_currentGravity}");
+                }
             }
 
             // Apply gravity to character
