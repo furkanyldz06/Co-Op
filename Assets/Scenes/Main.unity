@@ -352,6 +352,7 @@ MonoBehaviour:
   _errorText: {fileID: 49918285}
   _minNameLength: 2
   _maxNameLength: 15
+  mainCamera: {fileID: 330585543}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -1128,9 +1129,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b391773200ef4746a94f0cd5942607d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _spawnPosition: {x: 5, y: 1, z: 0}
+  _spawnAreaCenter: {x: 0, y: 5, z: 0}
+  _spawnAreaRadius: 20
+  _cubeCount: 30
   _cubeSize: {x: 0.5, y: 0.5, z: 0.5}
   _cubeColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  _playerSpawnCenter: {x: 0, y: 1, z: 0}
+  _playerSpawnExclusionRadius: 5
   _cubePrefab:
     RawGuidValue: a0d24aaae2fc14af9a9458cb47f3a38d
 --- !u!114 &1601050110

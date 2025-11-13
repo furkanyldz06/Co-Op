@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: 7b8191cf31e09fa429eb0b29726dbe19
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - visualTree: {fileID: 9197481963319205126, guid: 86958b43429a0614abeea0489b42955b,
+      type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 294372
+  packageName: Shadow Meter - Light Detection
+  packageVersion: 1.03
+  assetPath: Assets/Shadow Meter - Light Detection/Editor/EditorLightDetectorScript.cs
+  uploadId: 720494

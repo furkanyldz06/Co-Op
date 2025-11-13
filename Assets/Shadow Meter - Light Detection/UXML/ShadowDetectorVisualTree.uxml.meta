@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 86958b43429a0614abeea0489b42955b
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 13804, guid: 0000000000000000e000000000000000, type: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 294372
+  packageName: Shadow Meter - Light Detection
+  packageVersion: 1.03
+  assetPath: Assets/Shadow Meter - Light Detection/UXML/ShadowDetectorVisualTree.uxml
+  uploadId: 720494

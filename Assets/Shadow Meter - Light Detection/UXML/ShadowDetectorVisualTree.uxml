@@ -1,0 +1,26 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" xsi="http://www.w3.org/2001/XMLSchema-instance" engine="UnityEngine.UIElements" editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+    <ui:VisualElement name="TypeSelector" style="flex-grow: 1; margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0;">
+        <ui:Foldout text="Interactions" style="font-size: 20px; -unity-font-style: bold; letter-spacing: 0; -unity-text-outline-width: 0;">
+            <ui:Toggle label="Point Lights" name="PointLight" binding-path="pointLights" tooltip="Check to include point lights in Shadow Meter&apos;s calculations" style="font-size: 13px;" />
+            <ui:Toggle label="Spot Lights" name="SpotLights" binding-path="spotLights" value="true" tooltip="Check to include spot lights in Shadow Meter&apos;s calculations" style="font-size: 13px;" />
+            <ui:Toggle label="Directional Lights" name="DirectionalLights" binding-path="directionalLights" value="true" tooltip="Check to include Directional lights in Shadow Meter&apos;s calculations" style="font-size: 13px;" />
+        </ui:Foldout>
+    </ui:VisualElement>
+    <ui:VisualElement name="Parameters" style="flex-grow: 1; margin-top: 5px; margin-right: 5px; margin-bottom: 5px; margin-left: 5px;">
+        <ui:Foldout text="Detection Settings" style="font-size: 20px; -unity-font-style: bold;">
+            <ui:SliderInt picking-mode="Ignore" label="Refresh Rate (per Second)" value="15" high-value="30" name="Frequency" binding-path="frequency" low-value="1" tooltip="Times Shadow Detector refreshes the Shadow Meter Value. (Smaller number is more performant, Bigger number is more precise) Cannot be changed in Play mode" show-input-field="true" style="font-size: 13px; -unity-font-style: normal;" />
+            <ui:Slider picking-mode="Ignore" label="Height Offset" value="0" high-value="5" binding-path="playerOffset" low-value="-5" show-input-field="true" tooltip="Defines how high to check for direct light hits (Please enable Gizmos to see the Height Offset)" style="font-size: 13px;" />
+            <ui:FloatField label="Range" value="42,2" binding-path="range" tooltip="Determines how far to check for lights" style="font-size: 13px; padding-right: 0; height: 18px; -unity-font-style: normal;" />
+            <ui:Toggle label="Light Intensity" value="true" tooltip="Check to include the Light Intesity Parameter to Shadow Meter&apos;s Calculations" view-data-key="dg" name="LightIntensity" binding-path="includeIntensity" style="font-size: 13px;" />
+            <ui:SliderInt picking-mode="Ignore" label="Light Sensitivity" value="1" high-value="10" name="Sensitivity" binding-path="receptorSensitivity" tooltip="Increases the value of the light number. (Bigger is more sensitive)" low-value="0" show-input-field="true" style="font-size: 13px; white-space: nowrap;" />
+        </ui:Foldout>
+    </ui:VisualElement>
+    <ui:VisualElement name="Display" style="flex-grow: 1; font-size: 20px; -unity-font-style: bold;">
+        <ui:Foldout text="Display Settings" focusable="false" value="true" style="font-size: 20px;">
+            <uie:ObjectField label="Slider" type="UnityEngine.UI.Slider, UnityEngine.UI" binding-path="mySlider" allow-scene-objects="true" tooltip="Insert a Unity Slider UI to see Shadow Meter results as a slider" focusable="false" name="SliderField" style="font-size: 14px; -unity-font-style: normal;" />
+            <ui:Slider picking-mode="Ignore" label="Slider Speed" value="1" high-value="10" binding-path="mySliderSpeed" show-input-field="true" tooltip="Defines how fast the slider animates" style="font-size: 13px; -unity-font-style: normal;" />
+            <ui:Toggle label="Print Results" binding-path="printResult" tooltip="Enable to print Shadow Meter results in Console" value="true" style="font-size: 13px; -unity-font-style: normal;" />
+            <ui:Toggle label="Draw Gizmos" binding-path="drawGizmos" tooltip="Enable to display in Editor Gizmos" value="true" style="font-size: 13px; -unity-font-style: normal;" />
+        </ui:Foldout>
+    </ui:VisualElement>
+</ui:UXML>
