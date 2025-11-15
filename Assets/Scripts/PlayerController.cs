@@ -957,7 +957,7 @@ public class PlayerController : NetworkBehaviour
             // Debug log
             if (Time.frameCount % 60 == 0)
             {
-                Debug.Log($"[Render] Camera - Target: {_targetCameraRoll}, Current: {_currentCameraRoll}, Final: {_cameraTransform.rotation.eulerAngles.z}");
+                // Debug.Log($"[Render] Camera - Target: {_targetCameraRoll}, Current: {_currentCameraRoll}, Final: {_cameraTransform.rotation.eulerAngles.z}");
             }
         }
 
@@ -996,7 +996,7 @@ public class PlayerController : NetworkBehaviour
             // Debug log to check if this is running
             if (Time.frameCount % 60 == 0) // Log every 60 frames
             {
-                Debug.Log($"[Render] Player {Object.InputAuthority} - IsGravityInverted: {IsGravityInverted}, YAngle: {yAngle}, ChildRot: {_visualChild.rotation.eulerAngles}");
+                // Debug.Log($"[Render] Player {Object.InputAuthority} - IsGravityInverted: {IsGravityInverted}, YAngle: {yAngle}, ChildRot: {_visualChild.rotation.eulerAngles}");
             }
         }
 
