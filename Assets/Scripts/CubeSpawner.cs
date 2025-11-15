@@ -7,6 +7,8 @@ using UnityEngine;
 public class CubeSpawner : NetworkBehaviour
 {
     [Header("Spawn Settings")]
+    [Tooltip("Enable to spawn cubes procedurally. Disable if you want to place cubes manually in the scene.")]
+    [SerializeField] private bool _enableProceduralSpawning = true;
     [SerializeField] private Vector3 _spawnAreaCenter = new Vector3(0f, 5f, 0f);
     [SerializeField] private float _spawnAreaRadius = 20f;
     [SerializeField] private int _cubeCount = 30;
@@ -25,9 +27,13 @@ public class CubeSpawner : NetworkBehaviour
     public override void Spawned()
     {
         // Only the host/server spawns the cubes
-        if (Object.HasStateAuthority)
+        if (Object.HasStateAuthority && _enableProceduralSpawning)
         {
             SpawnCubes();
+        }
+        else if (!_enableProceduralSpawning)
+        {
+            Debug.Log("[CubeSpawner] Procedural spawning is disabled. Using manually placed cubes in the scene.");
         }
     }
 
