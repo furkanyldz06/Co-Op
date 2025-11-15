@@ -51,6 +51,7 @@ public class PlayerController : NetworkBehaviour
     [Networked, Capacity(16)] public string PlayerName { get; set; }
     [Networked] public NetworkBool IsCarrying { get; set; } // Is player carrying a cube?
     [Networked] public NetworkBehaviourId CarriedCubeId { get; set; } // ID of the carried cube
+    [Networked] public NetworkBool IsCarryingUpHead { get; set; } // Is carrying a cube with "UpHead" tag?
 
 
     [SerializeField] private float spherecastRadius = 10f; // Maximum weight player can carry
@@ -625,13 +626,21 @@ public class PlayerController : NetworkBehaviour
         if (!Runner.TryFindBehaviour(cubeId, out PickupableCube cube)) return;
         if (cube.IsPickedUp) return; // Already picked up
 
+        // Check if cube has "UpHead" tag
+        bool isUpHead = cube.CompareTag("UpHead");
+
         // Update networked state (server-side)
         IsCarrying = true;
         CarriedCubeId = cubeId;
+        IsCarryingUpHead = isUpHead; // Set the tag flag
 
         // Update cube state (server-side)
         cube.IsPickedUp = true;
         cube.PickedUpBy = Object.InputAuthority;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[RPC_RequestPickup] Cube tag: {cube.tag}, IsUpHead: {isUpHead}");
+#endif
 
         // Parent cube to left hand on server
         if (_leftHandBone != null)
@@ -749,6 +758,7 @@ public class PlayerController : NetworkBehaviour
         // This ensures UI updates instantly on all clients
         IsCarrying = false;
         CarriedCubeId = default;
+        IsCarryingUpHead = false; // Reset the tag flag
 
         // Store current world position and rotation BEFORE unparenting
         Vector3 dropPosition = _marker.position;
@@ -1018,12 +1028,35 @@ public class PlayerController : NetworkBehaviour
             }
 
             // Update Carry layer weight with smooth transition (1 second)
+            // Use different layer based on cube tag
             int carryLayerIndex = _animator.GetLayerIndex("Carry");
-            if (carryLayerIndex >= 0)
-            {
-                float targetWeight = IsCarrying ? 1f : 0f;
+            int upHeadCarryLayerIndex = _animator.GetLayerIndex("UpHeadCarry");
 
-                // Smoothly interpolate to target weight
+            if (carryLayerIndex >= 0 && upHeadCarryLayerIndex >= 0)
+            {
+                // Determine which layer should be active based on cube tag
+                float targetCarryWeight = (IsCarrying && !IsCarryingUpHead) ? 1f : 0f;
+                float targetUpHeadWeight = (IsCarrying && IsCarryingUpHead) ? 1f : 0f;
+
+                // Smoothly interpolate to target weights
+                _currentCarryWeight = Mathf.MoveTowards(_currentCarryWeight, targetCarryWeight, CARRY_TRANSITION_SPEED * Time.deltaTime);
+                float currentUpHeadWeight = Mathf.MoveTowards(_animator.GetLayerWeight(upHeadCarryLayerIndex), targetUpHeadWeight, CARRY_TRANSITION_SPEED * Time.deltaTime);
+
+                // Apply weights
+                _animator.SetLayerWeight(carryLayerIndex, _currentCarryWeight);
+                _animator.SetLayerWeight(upHeadCarryLayerIndex, currentUpHeadWeight);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                if (IsCarrying && Time.frameCount % 120 == 0)
+                {
+                    Debug.Log($"[Animator] IsCarryingUpHead: {IsCarryingUpHead}, Carry weight: {_currentCarryWeight:F2}, UpHeadCarry weight: {currentUpHeadWeight:F2}");
+                }
+#endif
+            }
+            else if (carryLayerIndex >= 0)
+            {
+                // Fallback: Only "Carry" layer exists (no UpHeadCarry layer)
+                float targetWeight = IsCarrying ? 1f : 0f;
                 _currentCarryWeight = Mathf.MoveTowards(_currentCarryWeight, targetWeight, CARRY_TRANSITION_SPEED * Time.deltaTime);
                 _animator.SetLayerWeight(carryLayerIndex, _currentCarryWeight);
             }

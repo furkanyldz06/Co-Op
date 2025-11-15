@@ -24,6 +24,8 @@ public class PickupableCube : NetworkBehaviour
     private Material _material;
     private bool _isHighlighted = false;
 
+    [SerializeField] Vector3 localPosition;
+
     private void Awake()
     {
         _collider = GetComponent<Collider>();
