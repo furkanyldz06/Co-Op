@@ -2357,7 +2357,7 @@ MonoBehaviour:
   _runnerPrefab: {fileID: 0}
   _playerPrefab:
     RawGuidValue: 4a608cabfd414438d96852192d59736b
-  _gameMode: 6
+  _gameMode: 1
 --- !u!1 &1310290391
 GameObject:
   m_ObjectHideFlags: 0

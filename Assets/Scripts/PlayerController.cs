@@ -654,14 +654,18 @@ public class PlayerController : NetworkBehaviour
                 Debug.Log($"[RPC_RequestPickup] 🔴 SERVER: NetworkTransform DISABLED (will stay disabled while carried)");
             }
 
+            // Use cube's own local position offset (each cube can have different hold position)
+            Vector3 holdOffset = cube.LocalPosition;
+
             cube.transform.SetParent(_leftHandBone);
-            cube.transform.localPosition = _cubeHoldOffset;
+            cube.transform.localPosition = holdOffset; // Use cube's own offset ✅
             cube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
 
-            Debug.Log($"[RPC_RequestPickup] ✅ SERVER: Cube parented to LeftHand at local pos {_cubeHoldOffset}");
+            Debug.Log($"[RPC_RequestPickup] ✅ SERVER: Cube parented to LeftHand at local pos {holdOffset} (from cube's LocalPosition)");
         }
 
         // Call RPC to all clients to disable collider and setup pickup
+        Debug.Log($"[RPC_RequestPickup] 📞 Calling RPC_OnPickupConfirmed for cube {cubeId}, IsCarryingUpHead: {IsCarryingUpHead}");
         RPC_OnPickupConfirmed(cubeId);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -675,10 +679,17 @@ public class PlayerController : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_OnPickupConfirmed(NetworkBehaviourId cubeId, RpcInfo info = default)
     {
+        Debug.Log($"[RPC_OnPickupConfirmed] 🎬 CALLED! CubeId: {cubeId}, IsCarryingUpHead: {IsCarryingUpHead}, HasInputAuthority: {Object.HasInputAuthority}");
+
         // Trigger Take animation
         if (_animator != null)
         {
             _animator.SetTrigger("Take");
+            Debug.Log($"[RPC_OnPickupConfirmed] ✅ Take trigger SET! IsCarryingUpHead: {IsCarryingUpHead}");
+        }
+        else
+        {
+            Debug.LogError($"[RPC_OnPickupConfirmed] ❌ Animator is NULL!");
         }
 
         // Force carry weight to start transitioning
@@ -709,11 +720,14 @@ public class PlayerController : NetworkBehaviour
                     Debug.Log($"[RPC_OnPickupConfirmed] 🔴 CLIENT: NetworkTransform DISABLED (will stay disabled while carried)");
                 }
 
+                // Use cube's own local position offset (each cube can have different hold position)
+                Vector3 holdOffset = cube.LocalPosition;
+
                 cube.transform.SetParent(_leftHandBone);
-                cube.transform.localPosition = _cubeHoldOffset;
+                cube.transform.localPosition = holdOffset; // Use cube's own offset ✅
                 cube.transform.localRotation = Quaternion.Euler(_cubeHoldRotation);
 
-                Debug.Log($"[RPC_OnPickupConfirmed] ✅ CLIENT: Cube parented to LeftHand, local pos: {cube.transform.localPosition}, world pos: {cube.transform.position}");
+                Debug.Log($"[RPC_OnPickupConfirmed] ✅ CLIENT: Cube parented to LeftHand, local pos: {holdOffset} (from cube's LocalPosition), world pos: {cube.transform.position}");
             }
             else
             {

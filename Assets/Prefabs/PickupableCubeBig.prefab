@@ -31,7 +31,7 @@ Transform:
   m_GameObject: {fileID: 4139252158196994817}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 22.373676, y: 1.7763134, z: -7.581904}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 3, y: 0.3, z: 3}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -151,7 +151,7 @@ MonoBehaviour:
   _originalColor: {r: 1, g: 1, b: 1, a: 1}
   _IsPickedUp:
     _value: 0
-  localPosition: {x: 0.4, y: 0.3, z: 0}
+  _localPosition: {x: 0.4, y: 0.241, z: 0}
 --- !u!114 &3605739470208219284
 MonoBehaviour:
   m_ObjectHideFlags: 0

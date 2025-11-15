@@ -24,7 +24,14 @@ public class PickupableCube : NetworkBehaviour
     private Material _material;
     private bool _isHighlighted = false;
 
-    [SerializeField] Vector3 localPosition;
+    [Header("Hold Settings")]
+    [Tooltip("Local position offset when held by player (relative to left hand bone)")]
+    [SerializeField] private Vector3 _localPosition = Vector3.zero;
+
+    /// <summary>
+    /// Get the local position offset for this cube when held
+    /// </summary>
+    public Vector3 LocalPosition => _localPosition;
 
     private void Awake()
     {
